@@ -12,11 +12,13 @@ export class ReplicaSyncClient {
     return [];
   }
 
-  async pull(_since: number): Promise<ReplicaRow[]> {
+  async pull(_kind: string, _since: Hlc | null): Promise<ReplicaRow[]> {
     return [];
   }
 
-  async pullBatch(_kinds: string[], _since: number): Promise<ReplicaRow[]> {
+  async pullBatch(
+    _cursors: { kind: string; since: Hlc | null }[],
+  ): Promise<{ kind: string; rows: ReplicaRow[] }[]> {
     return [];
   }
 
@@ -29,4 +31,18 @@ export class ReplicaSyncClient {
   async getKey(): Promise<ReplicaKeyRow | null> {
     return null;
   }
+
+  async listReplicaKeys(): Promise<ReplicaKeyRow[]> {
+    return [];
+  }
+
+  async createReplicaKey(_alg: string): Promise<ReplicaKeyRow> {
+    throw new Error('Sync not available');
+  }
+
+  async forgetReplicaKeys(): Promise<void> {}
+
+  invalidateReplicaKeysCache(): void {}
 }
+
+export const replicaSyncClient = new ReplicaSyncClient();

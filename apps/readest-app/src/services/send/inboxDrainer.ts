@@ -15,17 +15,6 @@ export interface DrainResult {
   failed: number;
 }
 
-export const DEFAULT_MAX_ITEMS_PER_PASS = 5;
-
-export async function drainInbox(): Promise<DrainResult> {
-  return { processed: 0, failed: 0 };
-}
-
-export interface DrainResult {
-  processed: number;
-  failed: number;
-}
-
 /** How often to refresh a 15-minute lease during a long conversion/upload. */
 export const LEASE_RENEW_INTERVAL_MS = 5 * 60 * 1000;
 
