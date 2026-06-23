@@ -64,6 +64,7 @@ import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { BookDetailModal } from '@/components/metadata';
 import { UpdaterWindow } from '@/components/UpdaterWindow';
 import { CatalogDialog } from './components/OPDSDialog';
+import { BookSourceBrowser } from './components/bookSources';
 import { MigrateDataWindow } from './components/MigrateDataWindow';
 import { BackupWindow } from './components/BackupWindow';
 import { CacheManagerWindow } from './components/CacheManagerWindow';
@@ -178,6 +179,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const [showCatalogManager, setShowCatalogManager] = useState(
     searchParams?.get('opds') === 'true',
   );
+  const [showBookSourceBrowser, setShowBookSourceBrowser] = useState(false);
   const [showImportFromUrl, setShowImportFromUrl] = useState(false);
   const [loading, setLoading] = useState(false);
   // Seed from the library store: if we already have books in memory (the
@@ -514,6 +516,14 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     const params = new URLSearchParams(searchParams?.toString());
     params.delete('opds');
     navigateToLibrary(router, `${params.toString()}`);
+  };
+
+  const handleShowBookSourceBrowser = () => {
+    setShowBookSourceBrowser(true);
+  };
+
+  const handleDismissBookSourceBrowser = () => {
+    setShowBookSourceBrowser(false);
   };
 
   useEffect(() => {
@@ -1392,6 +1402,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           }
           onImportBookFromUrl={isTauriAppPlatform() ? () => setShowImportFromUrl(true) : undefined}
           onOpenCatalogManager={handleShowOPDSDialog}
+          onOpenBookSources={handleShowBookSourceBrowser}
           onToggleSelectMode={() => handleSetSelectMode(!isSelectMode)}
           onSelectAll={handleSelectAll}
           onDeselectAll={handleDeselectAll}
@@ -1519,6 +1530,16 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       <CacheManagerWindow />
       {isSettingsDialogOpen && <SettingsDialog bookKey={''} />}
       {showCatalogManager && <CatalogDialog onClose={handleDismissOPDSDialog} />}
+      {showBookSourceBrowser && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='bg-base-100 rounded-box max-h-[80vh] w-full max-w-md overflow-y-auto shadow-xl'>
+            <BookSourceBrowser
+              onClose={handleDismissBookSourceBrowser}
+              onBookImported={() => pullLibrary(true)}
+            />
+          </div>
+        </div>
+      )}
       {failedImportsModal && (
         <FailedImportsDialog
           failedImports={failedImportsModal}

@@ -1,5 +1,8 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { isTauriAppPlatform } from '../environment';
+import { getAPIBaseUrl } from '../environment';
+
+const WEBDAV_PROXY_URL = `${getAPIBaseUrl()}/webdav/proxy`;
 
 /**
  * Minimal WebDAV client used by the Integrations panel.
@@ -256,17 +259,29 @@ export const checkConnection = async (
     return { success: false, code: 'SERVER_URL_REQUIRED' };
   }
   const url = buildUrl(config.serverUrl, rootPath);
-  const fetchFn = getFetch();
+  const authHeader = buildAuthHeader(config.username, config.password);
+
+  let response: Response;
   try {
-    const response = await fetchFn(url, {
-      method: 'PROPFIND',
-      headers: {
-        Authorization: buildAuthHeader(config.username, config.password),
-        Depth: '0',
-        'Content-Type': 'application/xml; charset=utf-8',
-      },
-      body: PROPFIND_BODY,
-    });
+    if (isTauriAppPlatform()) {
+      const fetchFn = getFetch();
+      response = await fetchFn(url, {
+        method: 'PROPFIND',
+        headers: {
+          Authorization: authHeader,
+          Depth: '0',
+          'Content-Type': 'application/xml; charset=utf-8',
+        },
+        body: PROPFIND_BODY,
+      });
+    } else {
+      const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&depth=0`;
+      response = await fetch(proxyUrl, {
+        method: 'PROPFIND',
+        headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+        body: PROPFIND_BODY,
+      });
+    }
     if (response.status === 207 || response.status === 200) {
       return { success: true, status: response.status };
     }
@@ -298,16 +313,28 @@ export const listDirectory = async (
 ): Promise<WebDAVEntry[]> => {
   const root = normalizeRootPath(rootPath);
   const url = buildUrl(config.serverUrl, root);
-  const fetchFn = getFetch();
-  const response = await fetchFn(url, {
-    method: 'PROPFIND',
-    headers: {
-      Authorization: buildAuthHeader(config.username, config.password),
-      Depth: '1',
-      'Content-Type': 'application/xml; charset=utf-8',
-    },
-    body: PROPFIND_BODY,
-  });
+  const authHeader = buildAuthHeader(config.username, config.password);
+
+  let response: Response;
+  if (isTauriAppPlatform()) {
+    const fetchFn = getFetch();
+    response = await fetchFn(url, {
+      method: 'PROPFIND',
+      headers: {
+        Authorization: authHeader,
+        Depth: '1',
+        'Content-Type': 'application/xml; charset=utf-8',
+      },
+      body: PROPFIND_BODY,
+    });
+  } else {
+    const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&depth=1`;
+    response = await fetch(proxyUrl, {
+      method: 'PROPFIND',
+      headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+      body: PROPFIND_BODY,
+    });
+  }
   if (response.status !== 207 && response.status !== 200) {
     throw new Error(`PROPFIND failed with status ${response.status}`);
   }
@@ -383,15 +410,32 @@ const requestWithMethod = async (
   init: { headers?: Record<string, string>; body?: BodyInit | null } = {},
 ): Promise<Response> => {
   const url = buildUrl(config.serverUrl, path);
-  const fetchFn = getFetch();
-  const headers: Record<string, string> = {
-    Authorization: buildAuthHeader(config.username, config.password),
-    ...(init.headers || {}),
-  };
-  try {
-    return await fetchFn(url, { method, headers, body: init.body ?? null });
-  } catch (e) {
-    throw new WebDAVRequestError((e as Error).message || 'Network error', undefined, 'NETWORK');
+  const authHeader = buildAuthHeader(config.username, config.password);
+
+  if (isTauriAppPlatform()) {
+    const fetchFn = getFetch();
+    const headers: Record<string, string> = {
+      Authorization: authHeader,
+      ...(init.headers || {}),
+    };
+    try {
+      return await fetchFn(url, { method, headers, body: init.body ?? null });
+    } catch (e) {
+      throw new WebDAVRequestError((e as Error).message || 'Network error', undefined, 'NETWORK');
+    }
+  } else {
+    const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}`;
+    const depth = init.headers?.['Depth'];
+    const proxyUrlWithDepth = depth ? `${proxyUrl}&depth=${depth}` : proxyUrl;
+    try {
+      return await fetch(proxyUrlWithDepth, {
+        method,
+        headers: init.headers || {},
+        body: init.body ?? null,
+      });
+    } catch (e) {
+      throw new WebDAVRequestError((e as Error).message || 'Network error', undefined, 'NETWORK');
+    }
   }
 };
 
