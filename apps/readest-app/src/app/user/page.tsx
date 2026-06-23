@@ -37,10 +37,7 @@ const ProfilePage = () => {
         style={{ paddingTop: `${safeAreaInsets?.top || 0}px` }}
       >
         <div className='flex w-full items-center justify-between px-4 py-2'>
-          <button
-            onClick={handleGoBack}
-            className='btn btn-ghost h-8 min-h-8 w-8 p-0'
-          >
+          <button onClick={handleGoBack} className='btn btn-ghost h-8 min-h-8 w-8 p-0'>
             <IoArrowBack className='text-base-content' />
           </button>
           {isTauriAppPlatform() && appService?.hasWindowBar && (
