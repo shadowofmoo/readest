@@ -32,7 +32,6 @@ import ControlPanel from './ControlPanel';
 import LangPanel from './LangPanel';
 import MiscPanel from './MiscPanel';
 import AIPanel from './AIPanel';
-import TTSPanel from './TTSPanel';
 
 export type SettingsPanelType =
   | 'Font'
@@ -462,9 +461,6 @@ const SettingsDialog: React.FC<{ bookKey: string }> = ({ bookKey }) => {
             bookKey={bookKey}
             onRegisterReset={(fn) => registerResetFunction('Control', fn)}
           />
-        )}
-        {activePanel === 'TTS' && (
-          <TTSPanel bookKey={bookKey} onRegisterReset={(fn) => registerResetFunction('TTS', fn)} />
         )}
         {activePanel === 'Language' && (
           <LangPanel

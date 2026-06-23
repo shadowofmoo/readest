@@ -30,7 +30,6 @@ import { getPopupPosition, Position } from '@/utils/sel';
 import { Overlay } from '@/components/Overlay';
 import DictionarySheet from '@/app/reader/components/annotator/DictionarySheet';
 import DictionaryPopup from '@/app/reader/components/annotator/DictionaryPopup';
-import TTSFollowIndicator, { TtsSyncStatus } from '@/app/reader/components/tts/TTSFollowIndicator';
 
 interface FlatChapter {
   label: string;
@@ -106,8 +105,6 @@ interface RSVPOverlayProps {
   fontFamily?: string;
   /** Book language, used to pick dictionary providers for context lookups. */
   lang?: string;
-  /** Derived TTS-sync status driving the "following audio" indicator (#3235). */
-  ttsSyncStatus?: TtsSyncStatus;
   /** True when following is paced by the estimator (non-Edge sentence sync). */
   estimated?: boolean;
   /** True when TTS audio is engaged (playing/paused) — drives the audio toggle. */
@@ -138,15 +135,13 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
   currentChapterHref,
   fontFamily,
   lang,
-  ttsSyncStatus = 'idle',
-  estimated = false,
+  estimated: _estimated = false,
   ttsActive = false,
   ttsPlaying = false,
   ttsRate = 1,
   onToggleTtsAudio,
   onToggleTtsPlay,
   onSetTtsRate,
-  onResumeTtsFollow,
   onClose,
   onChapterSelect,
   onRequestNextPage,
@@ -678,8 +673,7 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
   // Replace the WPM control with an "Audio pace" affordance that opens a TTS
   // rate picker instead (decision 6, #3235).
   // 'paused' keeps the WPM "Audio pace" lock too, so pausing doesn't shift layout.
-  const ttsDriven =
-    ttsSyncStatus === 'following' || ttsSyncStatus === 'syncing' || ttsSyncStatus === 'paused';
+  const ttsDriven = false;
 
   return (
     <div
@@ -863,19 +857,6 @@ const RSVPOverlay: React.FC<RSVPOverlayProps> = ({
           context panel (never inside the transport row). Uses the 'plain' variant
           to match the overlay's own theme-painted surface. idle/unsupported
           collapse to nothing. */}
-      {(ttsSyncStatus === 'following' ||
-        ttsSyncStatus === 'syncing' ||
-        ttsSyncStatus === 'decoupled' ||
-        ttsSyncStatus === 'paused') && (
-        <div className='flex shrink-0 justify-center px-3 pb-1 md:px-4'>
-          <TTSFollowIndicator
-            status={ttsSyncStatus}
-            estimated={estimated}
-            onResume={onResumeTtsFollow}
-            variant='plain'
-          />
-        </div>
-      )}
 
       {/* Context panel (always visible, collapsible) */}
       <div className='mx-3 overflow-hidden rounded-lg border border-gray-500/20 bg-gray-500/10 md:mx-4 md:rounded-xl'>

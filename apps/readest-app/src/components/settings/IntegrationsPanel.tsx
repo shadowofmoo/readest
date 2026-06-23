@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MdChevronRight } from 'react-icons/md';
 import {
-  RiBookOpenLine,
   RiRssLine,
   RiBookReadLine,
   RiBook3Line,
@@ -21,7 +20,6 @@ import { useWebDAVSyncStore } from '@/store/webdavSyncStore';
 import { CatalogManager } from '@/app/opds/components/CatalogManager';
 import { saveSysSettings } from '@/helpers/settings';
 import { navigateToLogin } from '@/utils/nav';
-import KOSyncForm from './integrations/KOSyncForm';
 import ReadwiseForm from './integrations/ReadwiseForm';
 import HardcoverForm from './integrations/HardcoverForm';
 import SendToReadestForm from './integrations/SendToReadestForm';
@@ -29,7 +27,7 @@ import WebDAVForm from './integrations/WebDAVForm';
 import SubPageHeader from './SubPageHeader';
 import { SectionTitle, SettingLabel } from './primitives';
 
-type SubPage = 'kosync' | 'webdav' | 'readwise' | 'hardcover' | 'opds' | 'send' | null;
+type SubPage = 'webdav' | 'readwise' | 'hardcover' | 'opds' | 'send' | null;
 
 /**
  * Integrations panel — single point of discovery for external service config:
@@ -87,7 +85,6 @@ const IntegrationsPanel: React.FC = () => {
   useEffect(() => {
     if (!requestedSubPage) return;
     if (
-      requestedSubPage === 'kosync' ||
       requestedSubPage === 'webdav' ||
       requestedSubPage === 'readwise' ||
       requestedSubPage === 'hardcover' ||
@@ -103,12 +100,6 @@ const IntegrationsPanel: React.FC = () => {
   // SubPageHeader's "Integrations" label lands at the exact same Y position
   // as the list-view's h2 — clicking a row reads as a navigation morph
   // rather than a layout shift.
-  if (subPage === 'kosync')
-    return (
-      <div className='my-4 w-full'>
-        <KOSyncForm onBack={() => setSubPage(null)} />
-      </div>
-    );
   if (subPage === 'webdav')
     return (
       <div className='my-4 w-full'>
@@ -146,12 +137,6 @@ const IntegrationsPanel: React.FC = () => {
       </div>
     );
 
-  const koSyncStatus = settings.kosync?.enabled
-    ? settings.kosync.username
-      ? _('Connected as {{user}}', { user: settings.kosync.username })
-      : _('Connected')
-    : _('Not connected');
-
   const readwiseStatus = settings.readwise?.enabled ? _('Connected') : _('Not connected');
   const hardcoverStatus = settings.hardcover?.enabled ? _('Connected') : _('Not connected');
   const webdavStatus = isWebDAVSyncing
@@ -177,12 +162,6 @@ const IntegrationsPanel: React.FC = () => {
         <SectionTitle className='mb-2'>{_('Reading Sync')}</SectionTitle>
         <div className='card eink-bordered border-base-200 bg-base-100 overflow-hidden border'>
           <div className='divide-base-200 divide-y'>
-            <IntegrationRow
-              icon={RiBookOpenLine}
-              title={_('KOReader Sync')}
-              status={koSyncStatus}
-              onClick={() => setSubPage('kosync')}
-            />
             <IntegrationRow
               icon={RiCloudLine}
               title={_('WebDAV')}

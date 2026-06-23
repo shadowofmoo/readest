@@ -14,7 +14,6 @@ import {
   buildRsvpExitConfigUpdate,
 } from '@/services/rsvp';
 import { eventDispatcher } from '@/utils/event';
-import { buildRsvpTtsSpeakDetail } from './rsvpTts';
 import { getBaseFontFamily } from '@/utils/style';
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -1048,15 +1047,7 @@ const RSVPControl = forwardRef<RSVPControlHandle, RSVPControlProps>(function RSV
       eventDispatcher.dispatch('tts-stop', { bookKey });
       return;
     }
-    const controller = controllerRef.current;
-    const currentWord = controller?.currentDisplayWord ?? null;
-    const view = getView(bookKey);
-    const currentDoc =
-      typeof currentWord?.docIndex === 'number'
-        ? view?.renderer.getContents().find((c) => c.index === currentWord.docIndex)?.doc
-        : undefined;
-    const detail = buildRsvpTtsSpeakDetail(currentWord, bookKey, currentDoc);
-    eventDispatcher.dispatch('tts-speak', detail ?? { bookKey });
+    eventDispatcher.dispatch('tts-speak', { bookKey });
   }, [bookKey, getView, ttsActive]);
 
   // RSVP transport (center play/pause) mapped to TTS play/pause while read-along
@@ -1108,7 +1099,6 @@ const RSVPControl = forwardRef<RSVPControlHandle, RSVPControlProps>(function RSV
             currentChapterHref={currentChapterHref}
             fontFamily={fontFamily}
             lang={dictionaryLang}
-            ttsSyncStatus={ttsSyncStatus}
             estimated={ttsEstimated}
             ttsActive={ttsActive}
             ttsPlaying={ttsPlaying}

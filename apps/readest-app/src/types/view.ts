@@ -1,6 +1,5 @@
 import { BookDoc } from '@/libs/document';
 import { BookNote, BookSearchConfig, BookSearchResult } from '@/types/book';
-import { TTSGranularity } from '@/services/tts';
 import { TTS } from 'foliate-js/tts.js';
 import { LocaleWithTextInfo } from './misc';
 
@@ -96,7 +95,7 @@ export interface FoliateView extends HTMLElement {
   select: (target: string | number | { fraction: number }) => void;
   deselect: () => void;
   initTTS: (
-    granularity?: TTSGranularity,
+    granularity?: string,
     nodeFilter?: (node: Node) => number,
     highlight?: (range: Range) => void,
   ) => Promise<void>;
