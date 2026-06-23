@@ -36,7 +36,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { useUICSS } from '@/hooks/useUICSS';
 import { useDemoBooks } from './hooks/useDemoBooks';
 import { useBooksSync } from './hooks/useBooksSync';
-import { useInboxDrainer } from '@/hooks/useInboxDrainer';
 import { useOPDSSubscriptions } from '@/hooks/useOPDSSubscriptions';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { useTransferStore } from '@/store/transferStore';
@@ -250,7 +249,6 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
 
   const { pullLibrary, pushLibrary } = useBooksSync();
   const { checkOPDSSubscriptions } = useOPDSSubscriptions();
-  useInboxDrainer();
   const { isDragging } = useDragDropImport();
 
   usePullToRefresh(
