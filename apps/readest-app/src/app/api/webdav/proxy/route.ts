@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isBlockedHost } from '@/utils/network';
 
-async function handleRequest(request: NextRequest, method: string) {
-  const url = request.nextUrl.searchParams.get('url');
-  const auth = request.nextUrl.searchParams.get('auth');
-
-  if (!url) {
-    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
-  }
-
+async function proxyToWebDAV(
+  url: string,
+  method: string,
+  auth: string | null,
+  body: string | null,
+  depth: string | null,
+) {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(url);
@@ -25,17 +24,7 @@ async function handleRequest(request: NextRequest, method: string) {
 
   const headers: Record<string, string> = {};
   if (auth) headers['Authorization'] = auth;
-
-  const depth = request.nextUrl.searchParams.get('depth');
   if (depth) headers['Depth'] = depth;
-
-  const contentType = request.headers.get('content-type');
-  if (contentType) headers['Content-Type'] = contentType;
-
-  let body: string | undefined;
-  if (method === 'PROPFIND' || method === 'PUT') {
-    body = await request.text();
-  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
@@ -44,15 +33,15 @@ async function handleRequest(request: NextRequest, method: string) {
     const response = await fetch(url, {
       method,
       headers,
-      body,
+      body: body || undefined,
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
     const respHeaders: Record<string, string> = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Cache-Control': 'no-store',
     };
 
@@ -76,28 +65,22 @@ async function handleRequest(request: NextRequest, method: string) {
   }
 }
 
-export async function PROPFIND(request: NextRequest) {
-  return handleRequest(request, 'PROPFIND');
-}
+export async function POST(request: NextRequest) {
+  const url = request.nextUrl.searchParams.get('url');
+  const auth = request.nextUrl.searchParams.get('auth');
+  const method = request.nextUrl.searchParams.get('method') || 'GET';
+  const depth = request.nextUrl.searchParams.get('depth');
 
-export async function GET(request: NextRequest) {
-  return handleRequest(request, 'GET');
-}
+  if (!url) {
+    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
+  }
 
-export async function HEAD(request: NextRequest) {
-  return handleRequest(request, 'HEAD');
-}
+  let body: string | null = null;
+  if (method === 'PROPFIND' || method === 'PUT') {
+    body = await request.text();
+  }
 
-export async function PUT(request: NextRequest) {
-  return handleRequest(request, 'PUT');
-}
-
-export async function DELETE(request: NextRequest) {
-  return handleRequest(request, 'DELETE');
-}
-
-export async function MKCOL(request: NextRequest) {
-  return handleRequest(request, 'MKCOL');
+  return proxyToWebDAV(url, method, auth, body, depth);
 }
 
 export async function OPTIONS() {
@@ -105,8 +88,8 @@ export async function OPTIONS() {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
 }

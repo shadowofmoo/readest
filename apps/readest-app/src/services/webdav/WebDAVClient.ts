@@ -275,9 +275,9 @@ export const checkConnection = async (
         body: PROPFIND_BODY,
       });
     } else {
-      const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&depth=0`;
+      const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&method=PROPFIND&depth=0`;
       response = await fetch(proxyUrl, {
-        method: 'PROPFIND',
+        method: 'POST',
         headers: { 'Content-Type': 'application/xml; charset=utf-8' },
         body: PROPFIND_BODY,
       });
@@ -328,9 +328,9 @@ export const listDirectory = async (
       body: PROPFIND_BODY,
     });
   } else {
-    const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&depth=1`;
+    const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&method=PROPFIND&depth=1`;
     response = await fetch(proxyUrl, {
-      method: 'PROPFIND',
+      method: 'POST',
       headers: { 'Content-Type': 'application/xml; charset=utf-8' },
       body: PROPFIND_BODY,
     });
@@ -424,12 +424,12 @@ const requestWithMethod = async (
       throw new WebDAVRequestError((e as Error).message || 'Network error', undefined, 'NETWORK');
     }
   } else {
-    const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}`;
+    const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&method=${method}`;
     const depth = init.headers?.['Depth'];
     const proxyUrlWithDepth = depth ? `${proxyUrl}&depth=${depth}` : proxyUrl;
     try {
       return await fetch(proxyUrlWithDepth, {
-        method,
+        method: 'POST',
         headers: init.headers || {},
         body: init.body ?? null,
       });
