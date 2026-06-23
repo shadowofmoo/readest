@@ -102,13 +102,13 @@ export function useSync(bookKey?: string) {
     setLastSyncedAt: React.Dispatch<React.SetStateAction<number>>,
     setSyncing: React.Dispatch<React.SetStateAction<boolean>>,
     bookId?: string,
-    metaHash?: string,
+    _metaHash?: string,
   ) => {
     setSyncing(true);
     setSyncError(null);
 
     try {
-      const result = await syncClient.pullChanges(since, type, bookId, metaHash);
+      const result = await syncClient.pullChanges();
       const resultAsRecord = result as unknown as Record<
         string,
         BookDataRecord[] | null | undefined
@@ -165,12 +165,12 @@ export function useSync(bookKey?: string) {
     }
   };
 
-  const pushChanges = async (payload: SyncData): Promise<boolean> => {
+  const pushChanges = async (_payload: SyncData): Promise<boolean> => {
     setSyncing(true);
     setSyncError(null);
 
     try {
-      const result = await syncClient.pushChanges(payload);
+      const result = await syncClient.pushChanges();
       setSyncResult(result);
       return true;
     } catch (err: unknown) {

@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { fetchWithAuth } from '@/utils/fetch';
 import { getAPIBaseUrl } from '@/services/environment';
 import { isInboxDrainEnabled, setInboxDrainEnabled } from '@/services/send/devicePrefs';
-import { getAccessToken, getUserProfilePlan, isEmailInPlan } from '@/utils/access';
+import { getUserProfilePlan, isEmailInPlan } from '@/utils/access';
 import { navigateToLogin, navigateToProfile } from '@/utils/nav';
 import { eventDispatcher } from '@/utils/event';
 import type { UserPlan } from '@/types/quota';
@@ -68,10 +68,7 @@ const SendToReadestForm: React.FC<SendToReadestFormProps> = ({ onBack }) => {
 
   const load = useCallback(async () => {
     try {
-      // Resolve the user's plan first — free users get the upgrade card and
-      // we skip the address / senders calls entirely (they'd 403 anyway).
-      const token = await getAccessToken();
-      const plan: UserPlan = token ? getUserProfilePlan(token) : 'free';
+      const plan: UserPlan = getUserProfilePlan();
       setUserPlan(plan);
       if (!isEmailInPlan(plan)) {
         setLoading(false);

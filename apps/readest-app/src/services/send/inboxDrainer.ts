@@ -1,26 +1,24 @@
 import type { DBSendInboxItem } from '@/types/sendRecords';
 
-/**
- * Side-effect ports the drainer needs. The Supabase RPC calls, the payload
- * download, and the import pipeline are injected so the orchestration here is
- * unit-testable and free of React/network coupling. The `useInboxDrainer` hook
- * builds the real adapter from app context.
- */
 export interface InboxDrainerDeps {
-  /** `claim_inbox_item` RPC — claims the oldest drainable row, or null. */
   claimItem: () => Promise<DBSendInboxItem | null>;
-  /** `renew_inbox_claim` RPC — refreshes the lease mid-job. */
   renewClaim: (id: string) => Promise<boolean>;
-  /** `complete_inbox_item` RPC — terminal success. */
   completeItem: (id: string) => Promise<boolean>;
-  /** `fail_inbox_item` RPC — increments attempts; retries or fails terminally. */
   failItem: (id: string, error: string) => Promise<boolean>;
-  /** Resolve a claimed item into an EPUB-or-native File ready for import. */
   resolvePayload: (item: DBSendInboxItem) => Promise<File>;
-  /** Run the shared import pipeline (wraps ingestFile + persistence + push). */
   importItem: (file: File, item: DBSendInboxItem) => Promise<void>;
-  /** Best-effort R2 payload cleanup after a terminal success. */
   deletePayload?: (item: DBSendInboxItem) => Promise<void>;
+}
+
+export interface DrainResult {
+  processed: number;
+  failed: number;
+}
+
+export const DEFAULT_MAX_ITEMS_PER_PASS = 5;
+
+export async function drainInbox(): Promise<DrainResult> {
+  return { processed: 0, failed: 0 };
 }
 
 export interface DrainResult {

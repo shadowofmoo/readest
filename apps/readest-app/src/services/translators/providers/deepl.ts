@@ -1,8 +1,7 @@
 import { getAPIBaseUrl } from '@/services/environment';
 import { stubTranslation as _ } from '@/utils/misc';
 import { ErrorCodes, TranslationProvider } from '../types';
-import { UserPlan } from '@/types/quota';
-import { getSubscriptionPlan, getTranslationQuota } from '@/utils/access';
+import { getTranslationQuota } from '@/utils/access';
 import { normalizeToShortLang } from '@/utils/lang';
 import { saveDailyUsage } from '../utils';
 
@@ -26,9 +25,7 @@ export const deeplProvider: TranslationProvider = {
       'Content-Type': 'application/json',
     };
 
-    let userPlan: UserPlan = 'free';
     if (token) {
-      userPlan = getSubscriptionPlan(token);
       headers['Authorization'] = `Bearer ${token}`;
     }
 
@@ -44,7 +41,7 @@ export const deeplProvider: TranslationProvider = {
       use_cache: useCache,
     });
 
-    const quota = getTranslationQuota(userPlan);
+    const quota = getTranslationQuota();
     try {
       const response = await fetch(DEEPL_API_ENDPOINT, { method: 'POST', headers, body });
 
