@@ -16,7 +16,7 @@ export type BookFormat =
   | 'TXT'
   | 'MD';
 export type BookNoteType = 'bookmark' | 'annotation' | 'excerpt';
-export type ReadingStatus = 'unread' | 'reading' | 'finished';
+export type ReadingStatus = 'unread' | 'reading' | 'finished' | 'abandoned';
 export type HighlightStyle = 'highlight' | 'underline' | 'squiggly';
 // Predefined highlight colors, can be extended with custom hex colors
 export type HighlightColor = 'red' | 'yellow' | 'green' | 'blue' | 'violet' | string;
@@ -99,6 +99,10 @@ export interface Book {
   groupName?: string;
   tags?: string[];
   coverImageUrl?: string | null;
+  // Partial MD5 of the local cover.png. Content-addressed cover-change signal:
+  // a peer re-downloads the cover iff its synced value differs from the local
+  // one (issue #4544). Invariant: coverHash === partialMD5(cover.png).
+  coverHash?: string | null;
 
   createdAt: number;
   updatedAt: number;
@@ -107,11 +111,15 @@ export interface Book {
   uploadedAt?: number | null;
   downloadedAt?: number | null;
   coverDownloadedAt?: number | null;
+  // Field-level LWW timestamp for the cover, so a page-turn that wins whole-row
+  // LWW on updatedAt cannot clobber a cover edit (mirrors readingStatusUpdatedAt).
+  coverUpdatedAt?: number | null;
   syncedAt?: number | null;
 
   lastUpdated?: number; // deprecated in favor of updatedAt
   progress?: [number, number]; // Add progress field: [current, total], 1-based page number
   readingStatus?: ReadingStatus;
+  readingStatusUpdatedAt?: number; // ms; bumped only when readingStatus changes
   primaryLanguage?: string;
 
   metadata?: BookMetadata;
@@ -183,6 +191,7 @@ export interface BookLayout {
   compactMarginPx?: number; // deprecated
   gapPercent: number;
   scrolled: boolean;
+  webtoonMode: boolean;
   noContinuousScroll: boolean;
   disableClick: boolean;
   disableSwipe: boolean;
@@ -274,6 +283,7 @@ export interface ViewConfig {
   showRemainingTime: boolean;
   showRemainingPages: boolean;
   showProgressInfo: boolean;
+  showStickyProgressBar: boolean;
   showCurrentTime: boolean;
   use24HourClock: boolean;
   showCurrentBatteryStatus: boolean;
@@ -398,6 +408,9 @@ export interface BookProgress {
   pageinfo: PageInfo;
   pageItem?: { label?: string; href?: string } | null;
   timeinfo: TimeInfo;
+  // Overall reading position in foliate's size-domain (0..1), matching the
+  // domain used by the sticky progress bar's chapter ticks.
+  fraction: number;
   index: number;
   range: Range;
   page: number;
@@ -434,7 +447,7 @@ export interface BookSearchResult {
   progress?: number;
 }
 
-export const BOOK_CONFIG_SCHEMA_VERSION = 1;
+export const BOOK_CONFIG_SCHEMA_VERSION = 2;
 
 export interface BookConfig {
   schemaVersion?: number;
@@ -464,6 +477,16 @@ export interface BookDataRecord {
   user_id: string;
   updated_at: number | null;
   deleted_at: number | null;
+  // Server-assigned incremental-pull cursor, decoupled from updated_at (the
+  // client event time / sort key). Present on books rows from a server that
+  // ran migration 016; absent (fall back to updated_at) on older servers and
+  // on config/note records. Carried over the wire as an ISO-8601 string.
+  // See issue #4678.
+  synced_at?: string | null;
+  // Only book records carry an upload state: a book is indexed in the cloud
+  // as soon as its metadata syncs, but is unavailable to peers until its file
+  // blob is uploaded. Absent on config/note records.
+  uploaded_at?: string | null;
 }
 
 export interface BooksGroup {

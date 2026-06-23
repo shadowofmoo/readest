@@ -22,6 +22,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { useDeviceControlStore } from '@/store/deviceStore';
 import { useFoliateEvents } from '../../hooks/useFoliateEvents';
+import { useRendererInputListeners } from '../../hooks/useRendererInputListeners';
 import { useNotesSync } from '../../hooks/useNotesSync';
 import { useReadwiseSync } from '../../hooks/useReadwiseSync';
 import { useHardcoverSync } from '../../hooks/useHardcoverSync';
@@ -38,9 +39,10 @@ import { eventDispatcher } from '@/utils/event';
 import { findTocItemBS } from '@/services/nav';
 import { throttle } from '@/utils/throttle';
 import {
-  cancelDeferredAction,
+  beginGesture,
   createDeferredActionState,
   flushDeferredAction,
+  isLongPressHold,
   runOrDeferAction,
 } from '../../utils/deferredAction';
 import { Insets } from '@/types/misc';
@@ -55,7 +57,9 @@ import { TransformContext } from '@/services/transformers/types';
 import { transformContent } from '@/services/transformService';
 import {
   buildTTSSentenceHighlight,
+  decideAnnotationDraw,
   getHighlightColorHex,
+  mergeRestyledAnnotation,
   removeBookNoteOverlays,
 } from '../../utils/annotatorUtil';
 import { buildAnnotationIndex, selectLocationAnnotations } from '../../utils/annotationIndex';
@@ -174,6 +178,10 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   // (Android long-press selects text via selectionchange before touchend). The
   // pending action runs on touchend so popups don't open under an active touch.
   const deferredQuickActionRef = useRef(createDeferredActionState());
+  // Timestamp of the latest touch pointerdown (0 for mouse). Used to require a
+  // long-press hold before the instant quick action fires, so a tap-to-deselect
+  // can't re-open the dictionary off a racy lingering selectionchange (iOS).
+  const pointerDownTimeRef = useRef(0);
   // Set when a Word Lens gloss tap synthesizes a selection so the
   // selection-change effect opens the dictionary popup instead of the
   // annotation toolbar. Cleared as soon as it's consumed.
@@ -349,39 +357,39 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
       handleTouchMove(ev);
     };
 
-    const handleNativeTouch = (event: CustomEvent) => {
-      const ev = event.detail as NativeTouchEventType;
-      if (ev.type === 'touchstart') {
-        androidTouchEndRef.current = false;
-        cancelDeferredAction(deferredQuickActionRef.current);
-        handleTouchStart();
-      } else if (ev.type === 'touchmove') {
-        // The Android pointer engagement signal (throttled in MainActivity.kt).
-        handleNativeTouchMove(ev.x, ev.y, doc);
-      } else if (ev.type === 'touchend') {
-        androidTouchEndRef.current = true;
-        handleTouchEnd();
-        handlePointerUp(doc, index);
-        flushDeferredAction(deferredQuickActionRef.current);
-      }
-    };
-
-    if (appService?.isAndroidApp) {
-      listenToNativeTouchEvents();
-      eventDispatcher.on('native-touch', handleNativeTouch);
-    }
-
     // Attach generic selection listeners for all formats, including PDF.
     // For PDF we only guarantee Copy & Translate; highlight/annotate may be limited by CFI support.
-    view?.renderer?.addEventListener('scroll', handleScroll);
-    // Reposition popups on scroll to keep them in view
-    view?.renderer?.addEventListener('scroll', () => {
-      repositionPopups();
-    });
+    //
+    // The renderer `scroll` listener and the Android `native-touch` bridge are
+    // NOT attached here: onLoad fires for every (pre)loaded section, but those
+    // listeners live on the renderer / global dispatcher, which outlive sections.
+    // Attaching them per load leaked one set per chapter and degraded paragraph
+    // mode over a long session. They are registered once per view via
+    // useRendererInputListeners below. Popup repositioning on scroll is already
+    // handled by the dedicated effect further down.
     const opts = { passive: false };
     detail.doc?.addEventListener('touchstart', handleTouchStart, opts);
     detail.doc?.addEventListener('touchmove', handleTouchmove, opts);
     detail.doc?.addEventListener('touchend', handleTouchEnd);
+    // Re-arm the instant quick action at the start of each gesture. Android does
+    // this via the native-touch touchstart above; iOS/desktop have no such path,
+    // and a single iOS long-press emits multiple selectionchange events for the
+    // same word — without re-arming, the system-dictionary sheet stacked twice
+    // (the action fired once per event instead of once per gesture).
+    if (!appService?.isAndroidApp) {
+      detail.doc?.addEventListener(
+        'pointerdown',
+        (ev: Event) => {
+          beginGesture(deferredQuickActionRef.current);
+          // Remember when the gesture started so the instant quick action can
+          // require a long-press hold (touch only — mouse selections fire on
+          // pointerup and shouldn't be time-gated).
+          pointerDownTimeRef.current =
+            (ev as PointerEvent).pointerType === 'mouse' ? 0 : Date.now();
+        },
+        opts,
+      );
+    }
     detail.doc?.addEventListener('pointerdown', handlePointerDown.bind(null, doc, index), opts);
     detail.doc?.addEventListener('pointermove', handlePointerMove.bind(null, doc, index), opts);
     detail.doc?.addEventListener('pointercancel', handlePointerCancel.bind(null, doc, index));
@@ -471,21 +479,27 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
     const detail = (event as CustomEvent).detail;
     const { draw, annotation, doc, range } = detail;
     const { style, color } = annotation as BookNote;
+    const value = (annotation as BookNote & { value?: string }).value;
     const hexColor = getHighlightColorHex(settings, color);
     const einkBgColor = isDarkMode ? '#000000' : '#ffffff';
     const einkFgColor = isDarkMode ? '#ffffff' : '#000000';
-    if (annotation.note) {
+    // Choose what to draw from the overlay's `value` (cfi vs NOTE_PREFIX+cfi),
+    // not from `annotation.note`: a unified record (style + note) is added as
+    // two overlays and must draw a highlight for the cfi overlay AND a bubble
+    // for the note overlay. Keying off `note` drew only the bubble (#4511).
+    const kind = decideAnnotationDraw(value, style);
+    if (kind === 'bubble') {
       const { defaultView } = doc;
       const node = range.startContainer;
       const el = node.nodeType === 1 ? node : node.parentElement;
       const { writingMode } = defaultView.getComputedStyle(el);
       draw(Overlayer.bubble, { writingMode });
-    } else if (style === 'highlight') {
+    } else if (kind === 'highlight') {
       draw(Overlayer.highlight, {
         color: isBwEink ? einkBgColor : hexColor,
         vertical: viewSettings.vertical,
       });
-    } else if (['underline', 'squiggly'].includes(style as string)) {
+    } else if (kind === 'underline' || kind === 'squiggly') {
       const { defaultView } = doc;
       const node = range.startContainer;
       const el = node.nodeType === 1 ? node : node.parentElement;
@@ -498,7 +512,7 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
       const padding = viewSettings.vertical
         ? (lineHeightValue - fontSizeValue) / 2 - strokeWidth + verticalCompensation
         : (lineHeightValue - fontSizeValue) / 2 - strokeWidth + horizontalCompensation;
-      draw(Overlayer[style as keyof typeof Overlayer], {
+      draw(Overlayer[kind], {
         writingMode,
         color: isBwEink ? einkFgColor : hexColor,
         padding,
@@ -559,6 +573,41 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   };
 
   useFoliateEvents(view, { onLoad, onCreateOverlay, onDrawAnnotation, onShowAnnotation });
+
+  // Android native-touch handler (the per-gesture engagement signal bridged from
+  // MainActivity.kt). Registered once per view by useRendererInputListeners; it
+  // resolves the CURRENT primary section's doc/index at fire time rather than
+  // capturing them at load time, because foliate also fires `load` for preloaded
+  // neighbour sections, whose doc/index would be off-screen.
+  const handleNativeTouch = (ev: NativeTouchEventType) => {
+    const contents = view?.renderer?.getContents?.() ?? [];
+    const content = contents.find((c) => c.index === view?.renderer?.primaryIndex) ?? contents[0];
+    const doc = content?.doc;
+    const index = content?.index;
+    if (!doc || index === undefined) return;
+    if (ev.type === 'touchstart') {
+      androidTouchEndRef.current = false;
+      beginGesture(deferredQuickActionRef.current);
+      handleTouchStart();
+    } else if (ev.type === 'touchmove') {
+      handleNativeTouchMove(ev.x, ev.y, doc);
+    } else if (ev.type === 'touchend') {
+      androidTouchEndRef.current = true;
+      handleTouchEnd();
+      handlePointerUp(doc, index);
+      flushDeferredAction(deferredQuickActionRef.current);
+    }
+  };
+
+  // Register the renderer `scroll` listener and (on Android) the `native-touch`
+  // bridge once per view, with cleanup — see the hook for why attaching these in
+  // onLoad leaked listeners and degraded paragraph mode over a long session.
+  useRendererInputListeners(view, {
+    onRendererScroll: handleScroll,
+    onNativeTouch: handleNativeTouch,
+    enableNativeTouch: !!appService?.isAndroidApp,
+    listenToNativeTouchEvents,
+  });
 
   // Word Lens: open the dictionary popup for a tapped glossed word. The tap is
   // detected in the iframe click handler (iframeEventHandlers.ts), which sends
@@ -775,7 +824,21 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A real touch selection only appears after the OS long-press (~500ms); a
+  // quick tap that re-reports a lingering selection fires far sooner.
+  const quickActionMinHoldMs = 300;
+
   const handleQuickAction = () => {
+    // iOS/desktop immediate path: only fire from a long-press hold. Without this
+    // a tap-to-deselect after dismissing the system dictionary occasionally
+    // re-opened it off a racy lingering selectionchange. Android defers to
+    // touchend (a deliberate lift) and is left as-is.
+    if (
+      !appService?.isAndroidApp &&
+      !isLongPressHold(pointerDownTimeRef.current, Date.now(), quickActionMinHoldMs)
+    ) {
+      return;
+    }
     const action = viewSettings.annotationQuickAction;
     const runAction = () => {
       switch (action) {
@@ -867,8 +930,10 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
 
       const { enableAnnotationQuickActions, annotationQuickAction } = viewSettings;
       if (wantWordLensDict) {
-        setShowAnnotPopup(false);
-        setShowDictionaryPopup(true);
+        // Route through handleDictionary so a Word Lens gloss tap honours the
+        // dictionary settings (system dictionary vs the in-app popup) — same
+        // as the selection-toolbar and instant-quick-action dictionary paths.
+        handleDictionary();
       } else if (enableAnnotationQuickActions && annotationQuickAction && isTextSelected.current) {
         handleQuickAction();
       } else {
@@ -1049,15 +1114,17 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
         views.forEach((view) => removeGlobalAnnotationOverlays(view, existing));
       }
       if (update) {
-        annotation.id = existing.id;
-        // Carry the existing `global` flag forward — toggling color/style
-        // shouldn't silently demote a global highlight back to single-range.
-        if (existing.global) annotation.global = true;
-        annotations[existingIndex] = annotation;
-        views.forEach((view) => view?.addAnnotation(annotation));
-        if (annotation.global) {
+        // Preserve the note/text/createdAt and the `global` flag of the existing
+        // record so a restyle (color/style change) of a unified annotation
+        // doesn't wipe its note or silently demote a global highlight. The note
+        // bubble overlay (NOTE_PREFIX) isn't torn down above, so it persists; we
+        // only redraw the highlight overlay (value = cfi).
+        const merged = mergeRestyledAnnotation(existing, annotation);
+        annotations[existingIndex] = merged;
+        views.forEach((view) => view?.addAnnotation(merged));
+        if (merged.global) {
           views.forEach((view) => {
-            if (view) expandAllRenderedSections(view, annotation);
+            if (view) expandAllRenderedSections(view, merged);
           });
         }
       } else {
@@ -1198,13 +1265,23 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
     eventDispatcher.dispatch('tts-speak', {
       bookKey,
       oneTime,
-      range: selection.range,
+      // Clone so clearing the live selection below can't disturb the range
+      // TTS uses to choose where to start.
+      range: selection.range.cloneRange(),
       index: selection.index,
     });
+    // The word was only selected to pick where to start reading; drop the
+    // selection so its highlight isn't left behind once TTS begins.
+    view?.deselect();
   };
 
   const handleProofread = () => {
-    if (!selection || !selection.text) return;
+    // With no active selection the shortcut (Ctrl/Cmd+P) has nothing to turn
+    // into a rule, so reuse it to open the replacement-rules manager instead.
+    if (!selection || !selection.text) {
+      setProofreadRulesVisibility(true);
+      return;
+    }
     setShowAnnotPopup(false);
     setShowProofreadPopup(true);
 

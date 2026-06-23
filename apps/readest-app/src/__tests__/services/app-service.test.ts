@@ -102,6 +102,10 @@ class TestAppService extends BaseAppService {
     return true;
   }
 
+  async saveImageToGallery(): Promise<boolean> {
+    return true;
+  }
+
   async ask(): Promise<boolean> {
     return true;
   }
@@ -264,6 +268,22 @@ describe('BaseAppService', () => {
     test('returns just prefix when path is empty', async () => {
       const result = await service.resolveFilePath('', 'Data');
       expect(result).toBe('/base/books');
+    });
+
+    // base 'None' carries a complete, absolute source path (in-place /
+    // external books point `book.filePath` outside Books/<hash>/). Its prefix
+    // is empty, so the path must be returned verbatim. Prepending a separator
+    // produced `/C:\Users\...` on Windows (and `//Users/...` on POSIX), which
+    // the native upload guard (transfer_file.rs `ensure_path_allowed`) rejects
+    // as "path not in filesystem scope" — issue #4720.
+    test('returns an absolute path unchanged when the prefix is empty (base None)', async () => {
+      vi.mocked(mockFs.getPrefix).mockResolvedValue('');
+
+      const windowsPath = "C:\\Users\\me\\Documents\\books\\Alice's Adventures.epub";
+      expect(await service.resolveFilePath(windowsPath, 'None')).toBe(windowsPath);
+
+      const posixPath = '/Users/me/Documents/books/Alice.epub';
+      expect(await service.resolveFilePath(posixPath, 'None')).toBe(posixPath);
     });
   });
 

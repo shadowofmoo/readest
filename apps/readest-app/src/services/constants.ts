@@ -241,6 +241,7 @@ export const DEFAULT_BOOK_LAYOUT: BookLayout = {
   compactMarginRightPx: 16,
   gapPercent: 5,
   scrolled: false,
+  webtoonMode: false,
   noContinuousScroll: false,
   disableClick: false,
   disableSwipe: false,
@@ -337,6 +338,7 @@ export const DEFAULT_VIEW_CONFIG: ViewConfig = {
   showRemainingTime: false,
   showRemainingPages: false,
   showProgressInfo: true,
+  showStickyProgressBar: false,
   showCurrentTime: false,
   showCurrentBatteryStatus: false,
   showBatteryPercentage: true,
@@ -956,6 +958,7 @@ export const TRANSLATOR_LANGS: Record<string, string> = {
   sl: 'Slovenščina',
   sk: 'Slovenčina',
   fa: 'فارسی',
+  ur: 'اردو',
 };
 
 export const SUPPORTED_LANGS: Record<string, string> = { ...TRANSLATED_LANGS, zh: '中文' };

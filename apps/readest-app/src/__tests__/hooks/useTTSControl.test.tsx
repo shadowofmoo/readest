@@ -146,6 +146,7 @@ vi.mock('@/services/tts', () => ({
       backward: vi.fn().mockResolvedValue(undefined),
       getVoices: vi.fn().mockResolvedValue([]),
       getVoiceId: vi.fn().mockReturnValue(''),
+      redispatchPosition: vi.fn(),
       state: 'idle',
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -197,19 +198,31 @@ vi.mock('@/utils/ttsTime', () => ({
   }),
 }));
 
+const { mockDeinitMediaSession } = vi.hoisted(() => ({
+  mockDeinitMediaSession: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock('@/app/reader/hooks/useTTSMediaSession', () => ({
   useTTSMediaSession: () => ({
     mediaSessionRef: { current: null },
     unblockAudio: vi.fn(),
     releaseUnblockAudio: vi.fn(),
     initMediaSession: vi.fn().mockResolvedValue(undefined),
-    deinitMediaSession: vi.fn().mockResolvedValue(undefined),
+    deinitMediaSession: mockDeinitMediaSession,
   }),
 }));
 
 // Imports must come AFTER vi.mock calls so they pick up the mocked modules.
 import { useTTSControl } from '@/app/reader/hooks/useTTSControl';
 import { eventDispatcher } from '@/utils/event';
+import { useReaderStore } from '@/store/readerStore';
+
+const getSetTTSEnabledMock = () =>
+  (
+    useReaderStore as unknown as {
+      getState: () => { setTTSEnabled: ReturnType<typeof vi.fn> };
+    }
+  ).getState().setTTSEnabled;
 
 const Harness = () => {
   useTTSControl({ bookKey: 'book-1' });
@@ -250,6 +263,152 @@ describe('useTTSControl concurrent tts-speak events', () => {
       while (pendingInitResolvers.length > 0) pendingInitResolvers.shift()!();
       await Promise.all([p1, p2]);
     });
+  });
+});
+
+describe('useTTSControl tts-sync-request (mode-entry replay)', () => {
+  beforeEach(() => {
+    ttsControllerInstances.length = 0;
+    pendingInitResolvers.length = 0;
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  const startSession = async () => {
+    render(<Harness />);
+    await act(async () => {
+      const p = eventDispatcher.dispatch('tts-speak', { bookKey: 'book-1' });
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      while (pendingInitResolvers.length > 0) pendingInitResolvers.shift()!();
+      await p;
+    });
+    await act(async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    return ttsControllerInstances[0] as { redispatchPosition: ReturnType<typeof vi.fn> };
+  };
+
+  it('replays the current position then the playback state when a session exists', async () => {
+    const controller = await startSession();
+    const order: string[] = [];
+    controller.redispatchPosition.mockImplementation(() => order.push('position'));
+    const stateListener = (e: Event) => {
+      order.push(`state:${(e as CustomEvent).detail.state}`);
+    };
+    eventDispatcher.on('tts-playback-state', stateListener);
+
+    await act(async () => {
+      await eventDispatcher.dispatch('tts-sync-request', { bookKey: 'book-1' });
+    });
+
+    eventDispatcher.off('tts-playback-state', stateListener);
+    // Position-before-state is required so RSVP's 'paused' handler (which drops
+    // following) can't discard the replayed position.
+    expect(order).toEqual(['position', 'state:playing']);
+  });
+
+  it('ignores a sync request for a different book', async () => {
+    const controller = await startSession();
+    controller.redispatchPosition.mockClear();
+
+    await act(async () => {
+      await eventDispatcher.dispatch('tts-sync-request', { bookKey: 'other-book' });
+    });
+
+    expect(controller.redispatchPosition).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op once the session has stopped', async () => {
+    const controller = await startSession();
+    await act(async () => {
+      await eventDispatcher.dispatch('tts-stop', { bookKey: 'book-1' });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    controller.redispatchPosition.mockClear();
+
+    await act(async () => {
+      await eventDispatcher.dispatch('tts-sync-request', { bookKey: 'book-1' });
+    });
+
+    expect(controller.redispatchPosition).not.toHaveBeenCalled();
+  });
+});
+
+describe('useTTSControl handleStop resilience (#4676)', () => {
+  beforeEach(() => {
+    ttsControllerInstances.length = 0;
+    pendingInitResolvers.length = 0;
+    mockDeinitMediaSession.mockReset();
+    mockDeinitMediaSession.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  const startSession = async () => {
+    render(<Harness />);
+    await act(async () => {
+      const p = eventDispatcher.dispatch('tts-speak', { bookKey: 'book-1' });
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      while (pendingInitResolvers.length > 0) pendingInitResolvers.shift()!();
+      await p;
+    });
+    await act(async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    return ttsControllerInstances[0] as { shutdown: ReturnType<typeof vi.fn> };
+  };
+
+  it('disables TTS even when controller.shutdown rejects', async () => {
+    // Regression: a native teardown that throws (observed with iOS system TTS)
+    // must not skip the state resets that turn the TTS icon off.
+    const controller = await startSession();
+    const setTTSEnabled = getSetTTSEnabledMock();
+    setTTSEnabled.mockClear();
+    controller.shutdown.mockRejectedValueOnce(new Error('native teardown failed'));
+
+    await act(async () => {
+      await eventDispatcher.dispatch('tts-stop', { bookKey: 'book-1' });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(setTTSEnabled).toHaveBeenCalledWith('book-1', false);
+  });
+
+  it('disables TTS even when controller.shutdown never resolves', async () => {
+    // The state resets must run before (not after) the teardown await, so a
+    // hung native teardown can never leave the TTS icon stuck on.
+    const controller = await startSession();
+    const setTTSEnabled = getSetTTSEnabledMock();
+    setTTSEnabled.mockClear();
+    controller.shutdown.mockReturnValueOnce(new Promise<void>(() => {}));
+
+    await act(async () => {
+      // Do not await the dispatch: handleStop intentionally never settles here.
+      eventDispatcher.dispatch('tts-stop', { bookKey: 'book-1' });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(setTTSEnabled).toHaveBeenCalledWith('book-1', false);
+  });
+
+  it('tears down the media session even when controller.shutdown never resolves', async () => {
+    // Regression for the lock-screen Now Playing lingering with iOS system TTS:
+    // the media-session teardown must not be gated behind the controller's own
+    // shutdown, which can stall.
+    const controller = await startSession();
+    mockDeinitMediaSession.mockClear();
+    controller.shutdown.mockReturnValueOnce(new Promise<void>(() => {}));
+
+    await act(async () => {
+      eventDispatcher.dispatch('tts-stop', { bookKey: 'book-1' });
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    expect(mockDeinitMediaSession).toHaveBeenCalled();
   });
 });
 

@@ -142,9 +142,10 @@ function createMockView(): FoliateView {
 
 // --- Helper: create mock AppService ---
 
-function createMockAppService(isAndroid = false): AppService {
+function createMockAppService(isAndroid = false, isIOS = false): AppService {
   return {
     isAndroidApp: isAndroid,
+    isIOSApp: isIOS,
   } as unknown as AppService;
 }
 
@@ -215,7 +216,13 @@ describe('TTSController', () => {
       expect(c.ttsNativeClient).not.toBeNull();
     });
 
-    test('does not create native client when not Android', () => {
+    test('creates native client when isIOSApp', () => {
+      const iosService = createMockAppService(false, true);
+      const c = new TTSController(iosService, mockView);
+      expect(c.ttsNativeClient).not.toBeNull();
+    });
+
+    test('does not create native client when neither Android nor iOS', () => {
       expect(controller.ttsNativeClient).toBeNull();
     });
 
@@ -825,6 +832,117 @@ describe('TTSController', () => {
         expect(sequences[i]!).toBeGreaterThan(sequences[i - 1]!);
       }
     });
+
+    test('a fresh controller continues the sequence instead of restarting', async () => {
+      vi.mocked(mockView.getCFI).mockReturnValue('cfi-x');
+
+      // Emit one sentence position from a controller and return its sequence.
+      const emitOnce = async (c: TTSController) => {
+        await c.initViewTTS(0);
+        mockView.tts = {
+          setMark: vi.fn().mockReturnValue(makeSentenceRange()),
+          getLastRange: vi.fn().mockImplementation(() => makeSentenceRange()),
+        } as unknown as FoliateView['tts'];
+        let seq = -1;
+        const handler = (e: Event) => {
+          seq = (e as CustomEvent).detail.sequence;
+        };
+        c.addEventListener('tts-position', handler);
+        c.dispatchSpeakMark({ offset: 0, name: '0', text: 'hello', language: 'en' });
+        c.removeEventListener('tts-position', handler);
+        return seq;
+      };
+
+      const firstSeq = await emitOnce(controller);
+      // A new `tts-speak` builds a fresh TTSController (see useTTSControl). A
+      // per-instance counter would restart, so the new session's first sequence
+      // would be <= the previous session's and a consumer holding
+      // `lastSequenceSeen` would drop it. A module-level counter keeps the
+      // sequence strictly increasing across sessions.
+      const controller2 = new TTSController(mockAppService, mockView, false);
+      const secondSeq = await emitOnce(controller2);
+
+      expect(secondSeq).toBeGreaterThan(firstSeq);
+    });
+  });
+
+  describe('redispatchPosition', () => {
+    const makeSentenceRange = () => {
+      document.body.innerHTML = '<p>Hello brave world</p>';
+      const textNode = document.body.firstElementChild!.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, textNode.length);
+      return range;
+    };
+
+    const armWithSentence = async (range: Range, markName = '0') => {
+      await controller.initViewTTS(0);
+      mockView.tts = {
+        setMark: vi.fn().mockReturnValue(range),
+        getLastRange: vi.fn().mockImplementation(() => range.cloneRange()),
+      } as unknown as FoliateView['tts'];
+      controller.dispatchSpeakMark({
+        offset: 0,
+        name: markName,
+        text: 'Hello brave world',
+        language: 'en',
+      });
+    };
+
+    test('re-emits the current sentence position when not in word mode', async () => {
+      await armWithSentence(makeSentenceRange());
+      vi.mocked(mockView.getCFI).mockReturnValue('cfi-sentence');
+
+      const listener = vi.fn();
+      controller.addEventListener('tts-position', listener);
+      controller.redispatchPosition();
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      const ev = listener.mock.calls[0]![0] as CustomEvent;
+      expect(ev.detail.kind).toBe('sentence');
+      expect(ev.detail.cfi).toBe('cfi-sentence');
+      expect(ev.detail.sectionIndex).toBe(0);
+      expect(typeof ev.detail.sequence).toBe('number');
+    });
+
+    test('re-emits the current word position when in word mode', async () => {
+      await armWithSentence(makeSentenceRange());
+      controller.prepareSpeakWords(['Hello', 'brave', 'world']);
+      vi.mocked(mockView.getCFI).mockReturnValue('cfi-word');
+      controller.dispatchSpeakWord(1);
+
+      const listener = vi.fn();
+      controller.addEventListener('tts-position', listener);
+      controller.redispatchPosition();
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      const ev = listener.mock.calls[0]![0] as CustomEvent;
+      expect(ev.detail.kind).toBe('word');
+      expect(ev.detail.cfi).toBe('cfi-word');
+    });
+
+    test('uses a fresh, strictly increasing sequence on each call', async () => {
+      await armWithSentence(makeSentenceRange());
+      vi.mocked(mockView.getCFI).mockReturnValue('cfi-x');
+
+      const sequences: number[] = [];
+      controller.addEventListener('tts-position', (e) => {
+        sequences.push((e as CustomEvent).detail.sequence);
+      });
+      controller.redispatchPosition();
+      controller.redispatchPosition();
+
+      expect(sequences.length).toBe(2);
+      expect(sequences[1]!).toBeGreaterThan(sequences[0]!);
+    });
+
+    test('is a no-op when TTS is inactive (no section)', () => {
+      const listener = vi.fn();
+      controller.addEventListener('tts-position', listener);
+      controller.redispatchPosition();
+      expect(listener).not.toHaveBeenCalled();
+    });
   });
 
   describe('getSpokenSentence', () => {
@@ -995,6 +1113,92 @@ describe('TTSController', () => {
       // should not throw
       await controller.stop();
       expect(controller.state).toBe('stopped');
+    });
+  });
+
+  // Regression: Android System TTS (and iOS) read offline can report a terminal
+  // 'error' for an utterance it cannot synthesize — typically a specific
+  // unsupported character, hit characteristically on the first utterance after
+  // a chapter boundary even with a local/offline voice (online the engine often
+  // network-falls-back, which is why it only breaks offline). #speak only
+  // auto-advances on 'end', so without handling, one such error dead-ends
+  // playback ("stops at the end of the chapter") with the controls wedged in
+  // 'playing'. Re-speaking the same text would just fail again, so the
+  // controller skips the bad chunk and advances, bounding consecutive failures
+  // so a wholly-unusable engine still stops gracefully. See #4613, #4408.
+  describe('native TTS offline error recovery (#4613, #4408)', () => {
+    // An Android controller whose ACTIVE client is the native client, so the
+    // native-scoped recovery in #speak() is exercised.
+    const makeAndroidNativeController = async () => {
+      const androidService = createMockAppService(true);
+      const c = new TTSController(androidService, mockView);
+      await c.init();
+      c.ttsClient = c.ttsNativeClient!;
+      await c.initViewTTS(0);
+      return c;
+    };
+
+    // A native speak() mock that always reports a terminal 'error' for real
+    // (non-preload) utterances — i.e. a deterministically unspeakable chunk.
+    // Preload calls (used to warm caches) resolve immediately like the real
+    // client and never count as attempts.
+    const alwaysErrorSpeakMock = (state: { attempts: number }) =>
+      async function* (
+        _ssml: string,
+        _signal: AbortSignal,
+        preload?: boolean,
+      ): AsyncGenerator<TTSMessageEvent> {
+        if (preload) {
+          yield { code: 'end' };
+          return;
+        }
+        state.attempts += 1;
+        yield { code: 'error', message: 'TTS playback error:-8' };
+      };
+
+    test('skips a chunk the engine cannot speak and advances instead of dead-ending', async () => {
+      const c = await makeAndroidNativeController();
+      // Stub forward() so the skip is observable without recursing through the
+      // mock sections; the point is that an error triggers an advance at all
+      // (retrying the same unspeakable text would be futile).
+      const forwardSpy = vi.spyOn(c, 'forward').mockResolvedValue();
+
+      const state = { attempts: 0 };
+      vi.mocked(c.ttsNativeClient!.speak).mockImplementation(alwaysErrorSpeakMock(state));
+
+      c.speak('<speak>bad-char</speak>');
+
+      await vi.waitFor(
+        () => {
+          expect(forwardSpy).toHaveBeenCalled(); // advanced past the bad chunk
+        },
+        { timeout: 5000 },
+      );
+      // It advanced rather than freezing in a phantom 'playing' halt.
+      expect(c.state).toBe('playing');
+    });
+
+    test('stops gracefully after a run of consecutive unspeakable chunks', async () => {
+      const c = await makeAndroidNativeController();
+      // Real forward(): each error skips to the next (mock) chunk, which also
+      // errors, until the consecutive-error cap stops playback.
+
+      const state = { attempts: 0 };
+      vi.mocked(c.ttsNativeClient!.speak).mockImplementation(alwaysErrorSpeakMock(state));
+
+      c.speak('<speak>bad-char</speak>');
+
+      // It skips past each unspeakable chunk — attempts climb past 1 (not an
+      // immediate halt) — until the consecutive-error cap is reached. (We key
+      // off attempts, not state: the controller starts 'stopped' and forward()
+      // transiently re-enters 'stopped' between chunks.)
+      await vi.waitFor(() => expect(state.attempts).toBeGreaterThanOrEqual(5), { timeout: 8000 });
+
+      // Let the cap-stop settle, then confirm it terminated (bounded, not
+      // racing to the end of the book) and is no longer playing.
+      await new Promise((r) => setTimeout(r, 150));
+      expect(c.state).not.toBe('playing');
+      expect(state.attempts).toBeLessThanOrEqual(10);
     });
   });
 
