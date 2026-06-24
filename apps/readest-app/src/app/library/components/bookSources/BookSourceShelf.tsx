@@ -5,11 +5,15 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useEnv } from '@/context/EnvContext';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useLibraryStore } from '@/store/libraryStore';
+import { useWebDAVSyncStore } from '@/store/webdavSyncStore';
 import type { BookSource, BookSourceEntry, BookSourceDirectory } from '@/services/bookSources';
+import { syncLibrary } from '@/services/webdav/WebDAVSync';
 import { ingestFile } from '@/services/ingestService';
 import { buildBookLookupIndex } from '@/services/bookService';
 import { navigateToReader } from '@/utils/nav';
+import { getLocalBookFilename } from '@/utils/book';
 import { useRouter } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
 
 interface BookSourceShelfProps {
   source: BookSource;
@@ -19,10 +23,11 @@ interface BookSourceShelfProps {
 const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => {
   const _ = useTranslation();
   const router = useRouter();
-  const { appService } = useEnv();
+  const { appService, envConfig } = useEnv();
   const settings = useSettingsStore((s) => s.settings);
   const library = useLibraryStore((s) => s.library);
   const setLibrary = useLibraryStore((s) => s.setLibrary);
+  const { isSyncing, progressLabel, beginSync, updateProgress, endSync } = useWebDAVSyncStore();
   const [entries, setEntries] = useState<BookSourceEntry[]>([]);
   const [directories, setDirectories] = useState<BookSourceDirectory[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<{ name: string; path: string }[]>([]);
@@ -93,6 +98,66 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
     [appService, opening, source, library, settings, setLibrary, router],
   );
 
+  const handleSyncToWebDAV = useCallback(async () => {
+    if (isSyncing || !appService) return;
+
+    const stored = settings.webdav;
+    if (!stored?.enabled || !stored.serverUrl) return;
+
+    const eligibleBooks = library.filter((b) => !b.deletedAt);
+    if (eligibleBooks.length === 0) return;
+
+    let deviceId = stored.deviceId;
+    if (!deviceId) {
+      deviceId = uuidv4();
+      const { saveSysSettings } = await import('@/helpers/settings');
+      saveSysSettings(envConfig, 'webdav', { ...stored, deviceId });
+    }
+
+    beginSync(_('Syncing {{n}} / {{total}}', { n: 0, total: eligibleBooks.length }));
+
+    try {
+      await syncLibrary(stored, eligibleBooks, {
+        strategy: 'send',
+        syncBooks: true,
+        deviceId: deviceId as string,
+        loadConfig: (book) => appService.loadBookConfig(book, settings),
+        loadBookFile: async (book) => {
+          const fp = book.filePath ?? getLocalBookFilename(book);
+          const base = book.filePath ? 'None' : 'Books';
+          if (!(await appService.exists(fp, base))) return null;
+          const file = await appService.openFile(fp, base);
+          const bytes = await file.arrayBuffer();
+          return { bytes, size: bytes.byteLength };
+        },
+        onProgress: ({ index, total, action }) => {
+          updateProgress(
+            action === 'uploading'
+              ? _('Uploading {{n}} / {{total}}', { n: index + 1, total })
+              : _('Downloading {{n}} / {{total}}', { n: index + 1, total }),
+          );
+        },
+      });
+
+      endSync();
+      loadEntries();
+    } catch (err) {
+      console.error('Sync failed:', err);
+      endSync();
+    }
+  }, [
+    isSyncing,
+    appService,
+    settings,
+    library,
+    envConfig,
+    beginSync,
+    updateProgress,
+    endSync,
+    _,
+    loadEntries,
+  ]);
+
   const navigateToDir = useCallback(
     (dirPath: string) => {
       loadEntries(dirPath);
@@ -129,6 +194,23 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
             ))}
           </ul>
         </div>
+        <div className='flex-grow' />
+        {source.type === 'webdav' && (
+          <button
+            className={`btn btn-sm ${isSyncing ? 'btn-disabled' : 'btn-primary'}`}
+            onClick={handleSyncToWebDAV}
+            disabled={isSyncing}
+          >
+            {isSyncing ? (
+              <>
+                <span className='loading loading-spinner loading-xs'></span>
+                {progressLabel || _('Syncing...')}
+              </>
+            ) : (
+              <>☁️ {_('Sync to WebDAV')}</>
+            )}
+          </button>
+        )}
       </div>
 
       {loading ? (
