@@ -1,0 +1,56 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+ENV ANDROID_HOME="/opt/android-sdk"
+ENV NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+ENV PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+ENV JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+ENV CARGO_HOME="/usr/local/cargo"
+ENV PATH="$CARGO_HOME/bin:$PATH"
+
+# System dependencies
+RUN apt-get update && apt-get install -y \
+    curl wget unzip git \
+    openjdk-17-jdk \
+    pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# pnpm
+RUN corepack enable && corepack prepare pnpm@11.1.1 --activate
+
+# Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+
+# Android SDK
+RUN mkdir -p $ANDROID_HOME/cmdline-tools && \
+    cd $ANDROID_HOME/cmdline-tools && \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && \
+    unzip -q commandlinetools-linux-11076708_latest.zip && \
+    mv cmdline-tools latest && \
+    rm commandlinetools-linux-11076708_latest.zip
+
+# Accept licenses and install SDK components
+RUN yes | sdkmanager --licenses > /dev/null 2>&1 && \
+    sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;28.2.13676358"
+
+WORKDIR /app
+
+# Copy dependency files first for better caching
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/readest-app/package.json ./apps/readest-app/
+COPY patches/ ./patches/
+COPY packages/ ./packages/
+
+RUN pnpm install --frozen-lockfile
+
+# Copy source
+COPY . .
+
+# Setup vendors
+RUN pnpm --filter @readest/readest-app setup-vendors
+
+# Default: build Android APK
+CMD ["bash", "-c", "cd apps/readest-app && pnpm tauri android init && pnpm tauri android build -t aarch64"]

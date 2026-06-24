@@ -1,0 +1,15 @@
+services:
+  android-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.android
+    volumes:
+      - ./apps/readest-app/src-tauri/gen/android/app/build/outputs:/app/apps/readest-app/src-tauri/gen/android/app/build/outputs
+      - cargo-cache:/usr/local/cargo/registry
+      - pnpm-cache:/pnpm/store
+    environment:
+      - NDK_HOME=/opt/android-sdk/ndk/28.2.13676358
+
+volumes:
+  cargo-cache:
+  pnpm-cache:
