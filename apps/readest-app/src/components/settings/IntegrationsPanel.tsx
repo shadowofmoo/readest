@@ -1,14 +1,7 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
 import { MdChevronRight } from 'react-icons/md';
-import {
-  RiRssLine,
-  RiBookReadLine,
-  RiBook3Line,
-  RiDiscordLine,
-  RiSendPlaneLine,
-  RiCloudLine,
-} from 'react-icons/ri';
+import { RiRssLine, RiDiscordLine, RiCloudLine } from 'react-icons/ri';
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useKeyDownActions } from '@/hooks/useKeyDownActions';
@@ -17,49 +10,22 @@ import { useCustomOPDSStore } from '@/store/customOPDSStore';
 import { useWebDAVSyncStore } from '@/store/webdavSyncStore';
 import { CatalogManager } from '@/app/opds/components/CatalogManager';
 import { saveSysSettings } from '@/helpers/settings';
-import ReadwiseForm from './integrations/ReadwiseForm';
-import HardcoverForm from './integrations/HardcoverForm';
-import SendToReadestForm from './integrations/SendToReadestForm';
 import WebDAVForm from './integrations/WebDAVForm';
 import SubPageHeader from './SubPageHeader';
 import { SectionTitle, SettingLabel } from './primitives';
 
-type SubPage = 'webdav' | 'readwise' | 'hardcover' | 'opds' | 'send' | null;
+type SubPage = 'webdav' | 'opds' | null;
 
-/**
- * Integrations panel — single point of discovery for external service config:
- * KOReader Sync, Readwise, Hardcover, and OPDS Catalogs.
- *
- * Pattern: boxed list of NavigationRows. Each row pushes the panel into an
- * inline sub-page (with breadcrumb back-navigation matching the Dictionaries
- * pattern) — no nested modals.
- *
- * TODO(design-system): Once we extract BoxedList / NavigationRow primitives,
- * this panel and CustomDictionaries should both consume them instead of
- * inlining the chassis.
- */
 const IntegrationsPanel: React.FC = () => {
   const _ = useTranslation();
   const { envConfig, appService } = useEnv();
   const { settings, requestedSubPage, setRequestedSubPage } = useSettingsStore();
   const opdsCatalogs = useCustomOPDSStore((s) => s.catalogs);
   const opdsCount = opdsCatalogs.filter((c) => !c.deletedAt).length;
-  // Surface a library-wide WebDAV sync that's mid-flight in the row's
-  // status line. Keeps the user from feeling like the run was lost
-  // when they back out of the WebDAV sub-page or close the dialog.
   const isWebDAVSyncing = useWebDAVSyncStore((s) => s.isSyncing);
 
   const [subPage, setSubPage] = useState<SubPage>(null);
 
-  // Android Back / Esc: when any integrations sub-page (KOSync, WebDAV,
-  // Readwise, Hardcover, OPDS, Send-to-Readest) is open, intercept and
-  // step back to the integrations list instead of letting <Dialog>'s
-  // listener close the whole Settings dialog. The hook registers its
-  // sync `native-key-down` listener *after* <Dialog>'s, and
-  // `dispatchSync` walks listeners LIFO — so this one claims Back first
-  // when enabled and `return true` consumes the event. When subPage is
-  // null the hook is disabled and Back falls through to close the dialog
-  // as before.
   useKeyDownActions({
     enabled: subPage !== null,
     onCancel: () => setSubPage(null),
@@ -70,44 +36,18 @@ const IntegrationsPanel: React.FC = () => {
     saveSysSettings(envConfig, 'discordRichPresenceEnabled', discordRichPresenceEnabled);
   };
 
-  // Deep-link consumption: when a caller (e.g. OPDS browser close handler)
-  // sets `requestedSubPage` in the store before opening the dialog, drill
-  // straight into that sub-page on mount and clear the request so it doesn't
-  // stick to the next open. Recognised values match the SubPage union.
   useEffect(() => {
     if (!requestedSubPage) return;
-    if (
-      requestedSubPage === 'webdav' ||
-      requestedSubPage === 'readwise' ||
-      requestedSubPage === 'hardcover' ||
-      requestedSubPage === 'opds' ||
-      requestedSubPage === 'send'
-    ) {
+    if (requestedSubPage === 'webdav' || requestedSubPage === 'opds') {
       setSubPage(requestedSubPage);
     }
     setRequestedSubPage(null);
   }, [requestedSubPage, setRequestedSubPage]);
 
-  // Sub-page wrapper matches the list-view's `my-4 w-full` so the
-  // SubPageHeader's "Integrations" label lands at the exact same Y position
-  // as the list-view's h2 — clicking a row reads as a navigation morph
-  // rather than a layout shift.
   if (subPage === 'webdav')
     return (
       <div className='my-4 w-full'>
         <WebDAVForm onBack={() => setSubPage(null)} />
-      </div>
-    );
-  if (subPage === 'readwise')
-    return (
-      <div className='my-4 w-full'>
-        <ReadwiseForm onBack={() => setSubPage(null)} />
-      </div>
-    );
-  if (subPage === 'hardcover')
-    return (
-      <div className='my-4 w-full'>
-        <HardcoverForm onBack={() => setSubPage(null)} />
       </div>
     );
   if (subPage === 'opds')
@@ -122,15 +62,7 @@ const IntegrationsPanel: React.FC = () => {
         <CatalogManager inSubPage />
       </div>
     );
-  if (subPage === 'send')
-    return (
-      <div className='my-4 w-full'>
-        <SendToReadestForm onBack={() => setSubPage(null)} />
-      </div>
-    );
 
-  const readwiseStatus = settings.readwise?.enabled ? _('Connected') : _('Not connected');
-  const hardcoverStatus = settings.hardcover?.enabled ? _('Connected') : _('Not connected');
   const webdavStatus = isWebDAVSyncing
     ? _('Syncing…')
     : settings.webdav?.enabled
@@ -146,7 +78,7 @@ const IntegrationsPanel: React.FC = () => {
       <div className='w-full px-4'>
         <h2 className='mb-1.5 text-lg font-semibold tracking-tight'>{_('Integrations')}</h2>
         <p className='text-base-content/70 text-sm leading-relaxed'>
-          {_('Connect Readest to external services for sync, highlights, and catalogs.')}
+          {_('Connect Readest to external services for sync and catalogs.')}
         </p>
       </div>
 
@@ -159,18 +91,6 @@ const IntegrationsPanel: React.FC = () => {
               title={_('WebDAV')}
               status={webdavStatus}
               onClick={() => setSubPage('webdav')}
-            />
-            <IntegrationRow
-              icon={RiBookReadLine}
-              title={_('Readwise')}
-              status={readwiseStatus}
-              onClick={() => setSubPage('readwise')}
-            />
-            <IntegrationRow
-              icon={RiBook3Line}
-              title={_('Hardcover')}
-              status={hardcoverStatus}
-              onClick={() => setSubPage('hardcover')}
             />
           </div>
         </div>
@@ -185,12 +105,6 @@ const IntegrationsPanel: React.FC = () => {
               title={_('OPDS Catalogs')}
               status={opdsStatus}
               onClick={() => setSubPage('opds')}
-            />
-            <IntegrationRow
-              icon={RiSendPlaneLine}
-              title={_('Send to Readest')}
-              status={_('Email books to your library')}
-              onClick={() => setSubPage('send')}
             />
           </div>
         </div>
@@ -261,11 +175,6 @@ interface IntegrationToggleRowProps {
   onChange: () => void;
 }
 
-/**
- * Sibling of IntegrationRow for settings that are a simple on/off toggle
- * (no sub-page). Keeps the same circular-badge chassis so toggle and
- * navigation rows read as one consistent list.
- */
 const IntegrationToggleRow: React.FC<IntegrationToggleRowProps> = ({
   icon: Icon,
   title,
@@ -274,11 +183,21 @@ const IntegrationToggleRow: React.FC<IntegrationToggleRowProps> = ({
   onChange,
 }) => {
   return (
-    <label className='flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left'>
+    <button
+      type='button'
+      onClick={onChange}
+      className={clsx(
+        'group flex w-full items-center gap-3 px-4 py-3 text-left',
+        'transition-colors duration-150',
+        'focus-visible:ring-base-content/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
+      )}
+    >
       <span
         className={clsx(
           'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full',
           'bg-base-200 text-base-content/70',
+          'transition-colors duration-150',
+          'group-hover:bg-base-300/70',
         )}
       >
         <Icon className='h-5 w-5' />
@@ -287,13 +206,20 @@ const IntegrationToggleRow: React.FC<IntegrationToggleRowProps> = ({
         <SettingLabel>{title}</SettingLabel>
         <span className='text-base-content/65 truncate text-[0.85em]'>{description}</span>
       </div>
-      <input
-        type='checkbox'
-        className='toggle flex-shrink-0'
-        checked={checked}
-        onChange={onChange}
-      />
-    </label>
+      <div
+        className={clsx(
+          'h-6 w-11 flex-shrink-0 rounded-full transition-colors duration-200',
+          checked ? 'bg-primary' : 'bg-base-300',
+        )}
+      >
+        <div
+          className={clsx(
+            'bg-base-100 h-5 w-5 rounded-full shadow-sm transition-transform duration-200',
+            checked ? 'translate-x-5.5 mt-0.5 ml-0.5' : 'translate-x-0.5 mt-0.5',
+          )}
+        />
+      </div>
+    </button>
   );
 };
 
