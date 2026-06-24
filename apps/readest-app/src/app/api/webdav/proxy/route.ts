@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isBlockedHost } from '@/utils/network';
 
 async function proxyToWebDAV(
   url: string,
@@ -17,9 +16,6 @@ async function proxyToWebDAV(
 
   if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
     return NextResponse.json({ error: 'Only http(s) URLs supported' }, { status: 400 });
-  }
-  if (isBlockedHost(parsedUrl.hostname)) {
-    return NextResponse.json({ error: 'Host not allowed' }, { status: 400 });
   }
 
   const headers: Record<string, string> = {};
