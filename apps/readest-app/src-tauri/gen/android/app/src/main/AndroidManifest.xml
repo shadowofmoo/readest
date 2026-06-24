@@ -205,15 +205,6 @@
             </intent-filter>
         </receiver>
 
-        <service
-          android:name="com.readest.native_tts.MediaPlaybackService"
-          android:foregroundServiceType="mediaPlayback"
-          android:exported="true">
-          <intent-filter>
-            <action android:name="android.media.browse.MediaBrowserService"/>
-          </intent-filter>
-        </service>
-
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"
