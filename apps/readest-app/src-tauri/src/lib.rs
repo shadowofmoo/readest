@@ -333,9 +333,6 @@ pub fn run() {
 
     let builder = builder.plugin(tauri_plugin_deep_link::init());
 
-    #[cfg(desktop)]
-    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-
     // Strip invalid geometry from the saved window state before the
     // window-state plugin loads it, so a bad `.window-state.json` (e.g. the
     // Windows minimized `-32000` sentinel) can't crash WebView2 on launch.
@@ -434,27 +431,12 @@ pub fn run() {
             #[cfg(not(target_os = "linux"))]
             let is_appimage = false;
 
-            // Flatpak mounts the app directory read-only, so the bundled updater can
-            // download but never apply an update. Disable it and leave updates to the
-            // Flatpak runtime. Detect via FLATPAK_ID or the /.flatpak-info sandbox file.
-            #[cfg(desktop)]
-            let updater_disabled = {
-                #[cfg(target_os = "linux")]
-                let is_flatpak = std::env::var("FLATPAK_ID").is_ok()
-                    || std::path::Path::new("/.flatpak-info").exists();
-                #[cfg(not(target_os = "linux"))]
-                let is_flatpak = false;
-                std::env::var("READEST_DISABLE_UPDATER").is_ok() || is_flatpak
-            };
-            #[cfg(not(desktop))]
-            let updater_disabled = false;
-
             let init_script = format!(
                 r#"
                     if ({is_eink}) window.__READEST_IS_EINK = true;
                     if ({cli_access}) window.__READEST_CLI_ACCESS = true;
                     if ({is_appimage}) window.__READEST_IS_APPIMAGE = true;
-                    if ({updater_disabled}) window.__READEST_UPDATER_DISABLED = true;
+                    window.__READEST_UPDATER_DISABLED = true;
                     window.addEventListener('DOMContentLoaded', function() {{
                         document.documentElement.classList.add('edge-to-edge');
                         const isTauriLocal = window.location.protocol === 'tauri:' ||
@@ -478,8 +460,7 @@ pub fn run() {
                 "#,
                 is_eink = is_eink,
                 cli_access = cli_access,
-                is_appimage = is_appimage,
-                updater_disabled = updater_disabled
+                is_appimage = is_appimage
             );
 
             let app_handle = app.handle().clone();
