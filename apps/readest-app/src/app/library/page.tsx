@@ -16,6 +16,8 @@ import { ingestFile } from '@/services/ingestService';
 import { eventDispatcher } from '@/utils/event';
 import { ProgressPayload } from '@/utils/transfer';
 import { throttle } from '@/utils/throttle';
+import type { BookSource } from '@/services/bookSources';
+import { WebDAVSource } from '@/services/bookSources';
 import { transferManager } from '@/services/transferManager';
 import { getDirPath, getFilename, joinPaths } from '@/utils/path';
 import { parseOpenWithFiles } from '@/helpers/openWith';
@@ -64,7 +66,7 @@ import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { BookDetailModal } from '@/components/metadata';
 import { UpdaterWindow } from '@/components/UpdaterWindow';
 import { CatalogDialog } from './components/OPDSDialog';
-import { BookSourceBrowser } from './components/bookSources';
+import { BookSourceBrowser, BookSourceShelf } from './components/bookSources';
 import { MigrateDataWindow } from './components/MigrateDataWindow';
 import { BackupWindow } from './components/BackupWindow';
 import { CacheManagerWindow } from './components/CacheManagerWindow';
@@ -180,6 +182,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     searchParams?.get('opds') === 'true',
   );
   const [showBookSourceBrowser, setShowBookSourceBrowser] = useState(false);
+  const [activeBookSource, setActiveBookSource] = useState<BookSource | null>(null);
   const [showImportFromUrl, setShowImportFromUrl] = useState(false);
   const [loading, setLoading] = useState(false);
   // Seed from the library store: if we already have books in memory (the
@@ -524,6 +527,26 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
 
   const handleDismissBookSourceBrowser = () => {
     setShowBookSourceBrowser(false);
+  };
+
+  const handleOpenWebDAVSource = useCallback(() => {
+    const webdav = settings.webdav;
+    if (!webdav?.enabled || !webdav.serverUrl || !appService) return;
+    const source = new WebDAVSource(
+      'webdav',
+      'WebDAV',
+      {
+        serverUrl: webdav.serverUrl,
+        username: webdav.username ?? '',
+        password: webdav.password ?? '',
+      },
+      webdav.rootPath ?? '/',
+    );
+    setActiveBookSource(source);
+  }, [settings.webdav, appService]);
+
+  const handleCloseBookSource = () => {
+    setActiveBookSource(null);
   };
 
   useEffect(() => {
@@ -1463,46 +1486,67 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           groupName={currentSeriesAuthorGroup.groupName}
         />
       )}
-      {showBookshelf &&
-        (libraryBooks.some((book) => !book.deletedAt) ? (
-          <div aria-label={_('Your Bookshelf')} className='flex min-h-0 flex-grow flex-col'>
-            <div
-              ref={containerRef}
-              className={clsx(
-                'scroll-container drop-zone flex min-h-0 flex-grow flex-col',
-                isDragging && 'drag-over',
-              )}
-              style={{
-                paddingRight: `${insets.right}px`,
-                paddingLeft: `${insets.left}px`,
-              }}
-            >
-              <DropIndicator />
-              <Bookshelf
-                libraryBooks={libraryBooks}
-                isSelectMode={isSelectMode}
-                isSelectAll={isSelectAll}
-                isSelectNone={isSelectNone}
-                onScrollerRef={handleScrollerRef}
-                handleImportBooks={handleImportBooksFromFiles}
-                handleBookUpload={handleBookUpload}
-                handleBookDownload={handleBookDownload}
-                handleBookDelete={handleBookDelete('both')}
-                handleBookPurge={handleBookDelete('purge')}
-                handleSetSelectMode={handleSetSelectMode}
-                handleShowDetailsBook={handleShowDetailsBook}
-                handleLibraryNavigation={handleLibraryNavigation}
-                booksTransferProgress={booksTransferProgress}
-                handlePushLibrary={pushLibrary}
-              />
+      {showBookshelf && (
+        <>
+          {settings.webdav?.enabled && settings.webdav.serverUrl && (
+            <div className='flex items-center gap-1 px-4 pt-2'>
+              <button
+                className={clsx('btn btn-sm', !activeBookSource && 'btn-primary')}
+                onClick={handleCloseBookSource}
+              >
+                {_('Local')}
+              </button>
+              <button
+                className={clsx('btn btn-sm', activeBookSource && 'btn-primary')}
+                onClick={handleOpenWebDAVSource}
+              >
+                WebDAV
+              </button>
             </div>
-          </div>
-        ) : (
-          <div className='hero drop-zone h-screen items-center justify-center'>
-            <DropIndicator />
-            <LibraryEmptyState onImport={handleImportBooksFromFiles} />
-          </div>
-        ))}
+          )}
+          {activeBookSource ? (
+            <BookSourceShelf source={activeBookSource} onBack={handleCloseBookSource} />
+          ) : libraryBooks.some((book) => !book.deletedAt) ? (
+            <div aria-label={_('Your Bookshelf')} className='flex min-h-0 flex-grow flex-col'>
+              <div
+                ref={containerRef}
+                className={clsx(
+                  'scroll-container drop-zone flex min-h-0 flex-grow flex-col',
+                  isDragging && 'drag-over',
+                )}
+                style={{
+                  paddingRight: `${insets.right}px`,
+                  paddingLeft: `${insets.left}px`,
+                }}
+              >
+                <DropIndicator />
+                <Bookshelf
+                  libraryBooks={libraryBooks}
+                  isSelectMode={isSelectMode}
+                  isSelectAll={isSelectAll}
+                  isSelectNone={isSelectNone}
+                  onScrollerRef={handleScrollerRef}
+                  handleImportBooks={handleImportBooksFromFiles}
+                  handleBookUpload={handleBookUpload}
+                  handleBookDownload={handleBookDownload}
+                  handleBookDelete={handleBookDelete('both')}
+                  handleBookPurge={handleBookDelete('purge')}
+                  handleSetSelectMode={handleSetSelectMode}
+                  handleShowDetailsBook={handleShowDetailsBook}
+                  handleLibraryNavigation={handleLibraryNavigation}
+                  booksTransferProgress={booksTransferProgress}
+                  handlePushLibrary={pushLibrary}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className='hero drop-zone h-screen items-center justify-center'>
+              <DropIndicator />
+              <LibraryEmptyState onImport={handleImportBooksFromFiles} />
+            </div>
+          )}
+        </>
+      )}
       {showDetailsBook && (
         <BookDetailModal
           isOpen={!!showDetailsBook}
