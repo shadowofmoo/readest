@@ -12,10 +12,15 @@ ENV PATH="$CARGO_HOME/bin:$PATH"
 
 # System dependencies
 RUN apt-get update && apt-get install -y \
-    curl wget unzip git \
+    curl wget unzip git ca-certificates gnupg \
     openjdk-17-jdk \
     pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # pnpm
 RUN npm install -g pnpm@11.1.1
