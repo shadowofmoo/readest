@@ -28,15 +28,13 @@ const FooterBar: React.FC<FooterBarProps> = ({
   const { appService } = useEnv();
   const { getConfig, setConfig, getBookData } = useBookDataStore();
   const { hoveredBookKey, setHoveredBookKey } = useReaderStore();
-  const { getView, getViewState, getProgress, getViewSettings } = useReaderStore();
+  const { getView, getViewSettings } = useReaderStore();
   const { isSideBarVisible, isSideBarPinned, setSideBarVisible } = useSidebarStore();
   const { acquireBackKeyInterception, releaseBackKeyInterception } = useDeviceControlStore();
 
   const view = getView(bookKey);
   const config = getConfig(bookKey);
   const bookData = getBookData(bookKey);
-  const viewState = getViewState(bookKey);
-  const progress = getProgress(bookKey);
   const viewSettings = getViewSettings(bookKey);
 
   const [userSelectedTab, setUserSelectedTab] = useState('');
@@ -91,23 +89,11 @@ const FooterBar: React.FC<FooterBarProps> = ({
     view?.history.forward();
   }, [view]);
 
-  const handleSpeakText = useCallback(async () => {
-    if (!view || !progress || !viewState) return;
-
-    const eventType = viewState.ttsEnabled ? 'tts-stop' : 'tts-speak';
-    eventDispatcher.dispatch(eventType, { bookKey });
-  }, [view, progress, viewState, bookKey]);
-
   const handleSetActionTab = useCallback(
     (tab: string) => {
       setUserSelectedTab((prevTab) => (prevTab === tab ? '' : tab));
 
-      if (tab === 'tts') {
-        if (viewState?.ttsEnabled) {
-          setHoveredBookKey('');
-        }
-        handleSpeakText();
-      } else if (tab === 'toc') {
+      if (tab === 'toc') {
         setHoveredBookKey('');
         if (config?.viewSettings) {
           setConfig(bookKey, { viewSettings: { ...config.viewSettings, sideBarTab: 'toc' } });
@@ -123,15 +109,7 @@ const FooterBar: React.FC<FooterBarProps> = ({
         }
       }
     },
-    [
-      config,
-      bookKey,
-      viewState?.ttsEnabled,
-      setConfig,
-      setSideBarVisible,
-      setHoveredBookKey,
-      handleSpeakText,
-    ],
+    [config, bookKey, setConfig, setSideBarVisible, setHoveredBookKey],
   );
 
   const navigationHandlers: NavigationHandlers = useMemo(
@@ -210,7 +188,6 @@ const FooterBar: React.FC<FooterBarProps> = ({
     navigationHandlers,
     forceMobileLayout,
     onSetActionTab: handleSetActionTab,
-    onSpeakText: handleSpeakText,
   };
 
   const needHorizontalScroll =

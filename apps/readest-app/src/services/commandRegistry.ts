@@ -4,7 +4,7 @@ import { RiFontSize, RiDashboardLine, RiTranslate, RiShareLine } from 'react-ico
 import { VscSymbolColor } from 'react-icons/vsc';
 import { LiaHandPointerSolid } from 'react-icons/lia';
 import { IoAccessibilityOutline } from 'react-icons/io5';
-import { PiRobot, PiSpeakerHigh, PiSun, PiMoon } from 'react-icons/pi';
+import { PiRobot, PiSun, PiMoon } from 'react-icons/pi';
 import { TbSunMoon } from 'react-icons/tb';
 import { MdRefresh } from 'react-icons/md';
 import { IconType } from 'react-icons';
@@ -151,7 +151,6 @@ const panelIcons: Record<SettingsPanelType, IconType> = {
   Layout: RiDashboardLine,
   Color: VscSymbolColor,
   Control: LiaHandPointerSolid,
-  TTS: PiSpeakerHigh,
   Language: RiTranslate,
   AI: PiRobot,
   Integrations: RiShareLine,
@@ -373,18 +372,6 @@ const colorPanelItems = [
     section: 'Highlight',
   },
   {
-    id: 'settings.tts.ttsHighlightStyle',
-    labelKey: _('TTS Highlighting'),
-    keywords: ['tts', 'highlight', 'style', 'speech', 'read', 'aloud'],
-    section: 'Highlight',
-  },
-  {
-    id: 'settings.tts.mediaMetadata',
-    labelKey: _('TTS Media Info Update Frequency'),
-    keywords: ['tts', 'media', 'metadata', 'bluetooth', 'notification', 'chapter', 'paragraph'],
-    section: 'TTS',
-  },
-  {
     id: 'settings.color.readingRuler',
     labelKey: _('Reading Ruler'),
     keywords: ['reading', 'ruler', 'line', 'guide', 'focus'],
@@ -522,12 +509,6 @@ const languagePanelItems = [
     id: 'settings.language.targetLanguage',
     labelKey: _('Translate To'),
     keywords: ['target', 'language', 'translation', 'destination'],
-    section: 'Translation',
-  },
-  {
-    id: 'settings.language.ttsTextTranslation',
-    labelKey: _('TTS Text'),
-    keywords: ['tts', 'text', 'translation', 'speech', 'read'],
     section: 'Translation',
   },
   {

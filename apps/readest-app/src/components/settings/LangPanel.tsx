@@ -44,7 +44,6 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
   const [translationProvider, setTranslationProvider] = useState(viewSettings.translationProvider);
   const [translateTargetLang, setTranslateTargetLang] = useState(viewSettings.translateTargetLang);
   const [showTranslateSource, setShowTranslateSource] = useState(viewSettings.showTranslateSource);
-  const [ttsReadAloudText, setTtsReadAloudText] = useState(viewSettings.ttsReadAloudText);
   const [replaceQuotationMarks, setReplaceQuotationMarks] = useState(
     viewSettings.replaceQuotationMarks,
   );
@@ -88,7 +87,6 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
       translationProvider: setTranslationProvider,
       translateTargetLang: setTranslateTargetLang,
       showTranslateSource: setShowTranslateSource,
-      ttsReadAloudText: setTtsReadAloudText,
       replaceQuotationMarks: setReplaceQuotationMarks,
     });
   };
@@ -163,20 +161,6 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
     setViewSettings(bookKey, { ...viewSettings });
   };
 
-  const handleSelectTTSText = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const option = event.target.value;
-    setTtsReadAloudText(option);
-    saveViewSettings(envConfig, bookKey, 'ttsReadAloudText', option, false, false);
-  };
-
-  const getTTSTextOptions = () => {
-    return [
-      { value: 'both', label: _('Source and Translated') },
-      { value: 'translated', label: _('Translated Only') },
-      { value: 'source', label: _('Source Only') },
-    ];
-  };
-
   useEffect(() => {
     if (uiLanguage === viewSettings.uiLanguage) return;
     const sameDir = getDirFromLanguage(uiLanguage) === getDirFromLanguage(viewSettings.uiLanguage);
@@ -218,12 +202,6 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showTranslateSource]);
-
-  useEffect(() => {
-    if (ttsReadAloudText === viewSettings.ttsReadAloudText) return;
-    saveViewSettings(envConfig, bookKey, 'ttsReadAloudText', ttsReadAloudText, false, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ttsReadAloudText]);
 
   useEffect(() => {
     if (replaceQuotationMarks === viewSettings.replaceQuotationMarks) return;
@@ -342,14 +320,6 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
           checked={showTranslateSource}
           onChange={() => setShowTranslateSource(!showTranslateSource)}
         />
-        <SettingsRow label={_('TTS Text')} data-setting-id='settings.language.ttsTextTranslation'>
-          <SettingsSelect
-            value={ttsReadAloudText}
-            onChange={handleSelectTTSText}
-            ariaLabel={_('TTS Text')}
-            options={getTTSTextOptions()}
-          />
-        </SettingsRow>
         <SettingsRow
           label={_('Translation Service')}
           data-setting-id='settings.language.translationProvider'

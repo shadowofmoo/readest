@@ -46,7 +46,6 @@ const MobileFooterBar: React.FC<FooterBarChildProps> = ({
         forceMobileLayout={forceMobileLayout}
       />
       <NavigationBar
-        bookKey={bookKey}
         actionTab={actionTab}
         gridInsets={gridInsets}
         forceMobileLayout={forceMobileLayout}

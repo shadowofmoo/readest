@@ -8,7 +8,7 @@ import { useCommandPalette } from '@/components/command-palette';
 import { RiFontSize, RiShareLine } from 'react-icons/ri';
 import { RiDashboardLine, RiTranslate } from 'react-icons/ri';
 import { VscSymbolColor } from 'react-icons/vsc';
-import { PiDotsThreeVerticalBold, PiRobot, PiSpeakerHigh } from 'react-icons/pi';
+import { PiDotsThreeVerticalBold, PiRobot } from 'react-icons/pi';
 import { LiaHandPointerSolid } from 'react-icons/lia';
 import { IoAccessibilityOutline } from 'react-icons/io5';
 import {
@@ -38,7 +38,6 @@ export type SettingsPanelType =
   | 'Layout'
   | 'Color'
   | 'Control'
-  | 'TTS'
   | 'Language'
   | 'AI'
   | 'Integrations'
@@ -117,11 +116,6 @@ const SettingsDialog: React.FC<{ bookKey: string }> = ({ bookKey }) => {
       disabled: process.env.NODE_ENV === 'production',
     },
     {
-      tab: 'TTS',
-      icon: PiSpeakerHigh,
-      label: _('TTS'),
-    },
-    {
       tab: 'Custom',
       icon: IoAccessibilityOutline,
       label: _('Custom'),
@@ -175,7 +169,6 @@ const SettingsDialog: React.FC<{ bookKey: string }> = ({ bookKey }) => {
     Layout: null,
     Color: null,
     Control: null,
-    TTS: null,
     Language: null,
     AI: null,
     Integrations: null,
@@ -209,7 +202,6 @@ const SettingsDialog: React.FC<{ bookKey: string }> = ({ bookKey }) => {
         layout: 'Layout',
         color: 'Color',
         control: 'Control',
-        tts: 'TTS',
         language: 'Language',
         ai: 'AI',
         integrations: 'Integrations',
