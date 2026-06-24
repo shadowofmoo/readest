@@ -46,17 +46,25 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: gradle
 
       - name: Setup Android SDK (Android only)
         if: matrix.name == 'Android'
         uses: android-actions/setup-android@v4
+
+      - name: Cache NDK (Android only)
+        if: matrix.name == 'Android'
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          key: ndk-28.2.13676358
 
       - name: Install NDK (Android only)
         if: matrix.name == 'Android'
         run: sdkmanager "ndk;28.2.13676358"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Setup vendors
         run: pnpm --filter @readest/readest-app setup-vendors
@@ -66,9 +74,19 @@ jobs:
         with:
           targets: ${{ matrix.rust_target }}
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.os }}-${{ matrix.name }}
+          cache-on-failure: true
+
+      - name: Cache Next.js
+        uses: actions/cache@v4
+        with:
+          path: apps/readest-app/.next/cache
+          key: nextjs-${{ matrix.name }}-${{ hashFiles('apps/readest-app/pnpm-lock.yaml') }}
+          restore-keys: |
+            nextjs-${{ matrix.name }}-
 
       - name: Create .env.local
         run: |
@@ -85,7 +103,6 @@ jobs:
           pnpm tauri icon ../../data/icons/readest-book.png
           git checkout .
 
-          # Debug signing (no keystore secret needed)
           pnpm tauri android build -t aarch64
 
       - name: Build Desktop (tauri-action)
