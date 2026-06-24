@@ -115,14 +115,6 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
     const handleShareIntent = (event: CustomEvent) => {
       const detail = event.detail as { book: Book; cfi?: string | null } | undefined;
       if (!detail?.book) return;
-      if (!user) {
-        eventDispatcher.dispatch('toast', {
-          type: 'info',
-          message: _('Sign in to share books'),
-          timeout: 2500,
-        });
-        return;
-      }
       setShareDialogState({
         book: detail.book,
         cfi: detail.cfi ?? null,

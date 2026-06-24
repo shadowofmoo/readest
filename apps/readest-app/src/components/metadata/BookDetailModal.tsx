@@ -5,7 +5,6 @@ import { Book } from '@/types/book';
 import { getBookWithUpdatedMetadata } from '@/utils/book';
 import { BookMetadata } from '@/libs/document';
 import { useEnv } from '@/context/EnvContext';
-import { useAuth } from '@/context/AuthContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useMetadataEdit } from './useMetadataEdit';
@@ -57,7 +56,6 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
 }) => {
   const _ = useTranslation();
   const { envConfig, appService } = useEnv();
-  const { user } = useAuth();
   const { safeAreaInsets } = useThemeStore();
   const [activeDeleteAction, setActiveDeleteAction] = useState<DeleteMenuAction | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -220,10 +218,9 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
     }
   };
 
-  // Sharing uploads the book to the Readest backend and mints a public link, so
-  // it needs a signed-in user and a resolvable on-disk file. `fileSize` is only
+  // Sharing needs a resolvable on-disk file. `fileSize` is only
   // non-null when getBookFileSize could actually open the local file.
-  const shareEnabled = !!user && fileSize !== null;
+  const shareEnabled = fileSize !== null;
 
   const currentDeleteConfig = activeDeleteAction ? deleteConfigs[activeDeleteAction] : null;
 

@@ -180,11 +180,7 @@ const BookDetailView: React.FC<BookDetailViewProps> = ({
                     transient
                     label={_('Share Book')}
                     disabled={!shareEnabled}
-                    tooltip={
-                      shareEnabled
-                        ? undefined
-                        : _('Sign in and make the book available to share it')
-                    }
+                    tooltip={shareEnabled ? undefined : _('Book file not available for sharing')}
                     onClick={onShare}
                   />
                 )}

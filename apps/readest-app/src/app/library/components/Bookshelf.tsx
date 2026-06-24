@@ -608,16 +608,6 @@ const Bookshelf: React.FC<BookshelfProps> = ({
     const handleShareIntent = (event: CustomEvent) => {
       const book = (event.detail as { book?: Book } | undefined)?.book;
       if (!book) return;
-      if (!user) {
-        // Logged-out users can't share their own files; route through the
-        // login flow instead. The /auth route preserves a return path.
-        eventDispatcher.dispatch('toast', {
-          type: 'info',
-          message: _('Sign in to share books'),
-          timeout: 2500,
-        });
-        return;
-      }
       setShareDialogBook(book);
     };
     eventDispatcher.on('show-share-dialog', handleShareIntent);
