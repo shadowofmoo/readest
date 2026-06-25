@@ -57,5 +57,4 @@ result*
 F:\\PProject\\readest\\check-errors.cjs
 
 # WSL cross-filesystem artifacts (Windows-style absolute paths)
-F:\*\*
-F:\\*
+*F:\\*
