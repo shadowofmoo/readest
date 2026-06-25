@@ -80,6 +80,19 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
     return index.byFilePath.has(entry.path);
   }, [library]);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const filteredEntries = searchDebounced
+    ? entries.filter((e) =>
+        e.title.toLowerCase().includes(searchDebounced.toLowerCase()) ||
+        (e.author ?? '').toLowerCase().includes(searchDebounced.toLowerCase()))
+    : entries;
+
   const doAutoSync = useCallback(async () => {
     if (autoSyncing || isSyncing || !appService) return;
     const stored = settings.webdav;
@@ -341,6 +354,18 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         </div>
       )}
 
+      {entries.length > 0 && !loading && (
+        <div className='px-4 py-2'>
+          <input
+            type='text'
+            placeholder={_('Search by title or author...')}
+            className='input input-bordered input-sm w-full'
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? (
         <div className='flex flex-grow flex-col items-center justify-center gap-2'>
           <span className='loading loading-spinner loading-lg'></span>
@@ -364,7 +389,7 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
           {entries.length > 0 && (
             <div>
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'>
-                {entries.map((entry) => {
+                {filteredEntries.map((entry) => {
                   const cached = isBookCached(entry);
                   const isImporting = importing.has(entry.id);
                   const error = importErrors.get(entry.id);
