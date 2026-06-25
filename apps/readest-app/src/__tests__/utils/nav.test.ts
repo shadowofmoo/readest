@@ -174,7 +174,7 @@ describe('navigateToProfile', () => {
     const router = mockRouter();
     navigateToProfile(router);
 
-    expect(router.push).toHaveBeenCalledWith('/user');
+    expect(router.replace).toHaveBeenCalledWith('/library', undefined);
   });
 });
 

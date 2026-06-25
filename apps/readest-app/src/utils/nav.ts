@@ -107,7 +107,7 @@ export const navigateToLogin = (router: ReturnType<typeof useRouter>) => {
 };
 
 export const navigateToProfile = (router: ReturnType<typeof useRouter>) => {
-  router.push('/user');
+  navigateToLibrary(router);
 };
 
 export const navigateToLibrary = (
