@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useEnv } from '@/context/EnvContext';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -14,6 +14,8 @@ import { navigateToReader } from '@/utils/nav';
 import { getLocalBookFilename } from '@/utils/book';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
+
+const AUTO_SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 interface BookSourceShelfProps {
   source: BookSource;
@@ -33,6 +35,56 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
   const [breadcrumb, setBreadcrumb] = useState<{ name: string; path: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+  const [autoSyncing, setAutoSyncing] = useState(false);
+  const autoSyncTimer = useRef<ReturnType<typeof setInterval>>();
+
+  const doAutoSync = useCallback(async () => {
+    if (autoSyncing || isSyncing || !appService) return;
+    const stored = settings.webdav;
+    if (!stored?.enabled || !stored.serverUrl) return;
+
+    setAutoSyncing(true);
+    try {
+      const eligibleBooks = library.filter((b) => !b.deletedAt);
+      let deviceId = stored.deviceId;
+      if (!deviceId) {
+        deviceId = uuidv4();
+        const { saveSysSettings } = await import('@/helpers/settings');
+        saveSysSettings(envConfig, 'webdav', { ...stored, deviceId });
+      }
+
+      await syncLibrary(stored, eligibleBooks, {
+        strategy: 'receive',
+        syncBooks: true,
+        deviceId: deviceId as string,
+        loadConfig: (book) => appService.loadBookConfig(book, settings),
+        loadBookFile: async (book) => {
+          const fp = book.filePath ?? getLocalBookFilename(book);
+          const base = book.filePath ? 'None' : 'Books';
+          if (!(await appService.exists(fp, base))) return null;
+          const file = await appService.openFile(fp, base);
+          const bytes = await file.arrayBuffer();
+          return { bytes, size: bytes.byteLength };
+        },
+      });
+
+      setLastSyncTime(Date.now());
+      loadEntries();
+    } catch (err) {
+      console.error('Auto-sync failed:', err);
+    } finally {
+      setAutoSyncing(false);
+    }
+  }, [autoSyncing, isSyncing, appService, settings, library, envConfig, loadEntries]);
+
+  useEffect(() => {
+    if (source.type === 'webdav') {
+      doAutoSync();
+      autoSyncTimer.current = setInterval(doAutoSync, AUTO_SYNC_INTERVAL);
+    }
+    return () => { clearInterval(autoSyncTimer.current); };
+  }, [doAutoSync, source.type]);
 
   const loadEntries = useCallback(
     async (dirPath?: string) => {
@@ -195,6 +247,14 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
           </ul>
         </div>
         <div className='flex-grow' />
+        {source.type === 'webdav' && lastSyncTime !== null && (
+          <span className='text-xs text-base-content/50 whitespace-nowrap'>
+            {autoSyncing && <span className='loading loading-spinner loading-xs mr-1'></span>}
+            {_('Last synced: {{time}}', { 
+              time: new Date(lastSyncTime).toLocaleTimeString() 
+            })}
+          </span>
+        )}
         {source.type === 'webdav' && (
           <button
             className={`btn btn-sm ${isSyncing ? 'btn-disabled' : 'btn-primary'}`}
@@ -207,7 +267,7 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
                 {progressLabel || _('Syncing...')}
               </>
             ) : (
-              <>☁️ {_('Sync to WebDAV')}</>
+              <>☁️ {_('Sync')}</>
             )}
           </button>
         )}
