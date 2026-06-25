@@ -180,7 +180,6 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
     } catch {
       console.info('Error closing book', bookKey);
     }
-    eventDispatcher.dispatch('tts-stop', { bookKey });
     await saveBookConfig(bookKey);
     clearViewState(bookKey);
   };
