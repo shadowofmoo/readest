@@ -32,6 +32,7 @@ import { type AppLockDialogMode, useAppLockStore } from '@/store/appLockStore';
 interface SettingsMenuProps {
   onPullLibrary: (fullRefresh?: boolean, verbose?: boolean) => void;
   setIsDropdownOpen?: (isOpen: boolean) => void;
+  onShowDebugLog?: () => void;
 }
 
 interface Permissions {
@@ -39,7 +40,7 @@ interface Permissions {
   manageStorage: PermissionState;
 }
 
-const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdownOpen }) => {
+const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdownOpen, onShowDebugLog }) => {
   const _ = useTranslation();
   const { envConfig, appService } = useEnv();
   const { themeMode, setThemeMode } = useThemeStore();
@@ -342,6 +343,10 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
       </MenuItem>
       <hr aria-hidden='true' className='border-base-200 my-1' />
       {isWebAppPlatform() && <MenuItem label={_('Download Readest')} onClick={downloadReadest} />}
+      <MenuItem label={_('Debug Log')} onClick={() => {
+        onShowDebugLog?.();
+        setIsDropdownOpen?.(false);
+      }} />
       <MenuItem label={_('About Readest')} onClick={showAboutReadest} />
     </Menu>
   );

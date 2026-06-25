@@ -70,6 +70,7 @@ import { BookSourceBrowser, BookSourceShelf } from './components/bookSources';
 import { MigrateDataWindow } from './components/MigrateDataWindow';
 import { BackupWindow } from './components/BackupWindow';
 import { CacheManagerWindow } from './components/CacheManagerWindow';
+import DebugLogViewer from '@/components/DebugLogViewer';
 import { useDragDropImport } from './hooks/useDragDropImport';
 import { useTransferQueue } from '@/hooks/useTransferQueue';
 import { useAppRouter } from '@/hooks/useAppRouter';
@@ -183,6 +184,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   );
   const [showBookSourceBrowser, setShowBookSourceBrowser] = useState(false);
   const [activeBookSource, setActiveBookSource] = useState<BookSource | null>(null);
+  const [showDebugLog, setShowDebugLog] = useState(false);
   const [showImportFromUrl, setShowImportFromUrl] = useState(false);
   const [loading, setLoading] = useState(false);
   // Seed from the library store: if we already have books in memory (the
@@ -1403,6 +1405,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           onImportBookFromUrl={isTauriAppPlatform() ? () => setShowImportFromUrl(true) : undefined}
           onOpenCatalogManager={handleShowOPDSDialog}
           onOpenBookSources={handleShowBookSourceBrowser}
+          onShowDebugLog={() => setShowDebugLog(true)}
           onToggleSelectMode={() => handleSetSelectMode(!isSelectMode)}
           onSelectAll={handleSelectAll}
           onDeselectAll={handleDeselectAll}
@@ -1480,6 +1483,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
                 WebDAV
               </button>
             </div>
+
+      <DebugLogViewer visible={showDebugLog} onClose={() => setShowDebugLog(false)} />
           )}
           {activeBookSource ? (
             <BookSourceShelf source={activeBookSource} onBack={handleCloseBookSource} />

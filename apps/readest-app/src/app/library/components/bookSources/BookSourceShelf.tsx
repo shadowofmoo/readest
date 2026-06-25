@@ -14,6 +14,7 @@ import { navigateToReader } from '@/utils/nav';
 import { getLocalBookFilename } from '@/utils/book';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
+import { debugLog } from '@/services/debugLog';
 
 const AUTO_SYNC_INTERVAL = 5 * 60 * 1000;
 const RETRY_DELAYS = [1000, 3000, 5000];
@@ -101,6 +102,7 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
     setAutoSyncing(true);
     try {
       const eligibleBooks = library.filter((b) => !b.deletedAt);
+      debugLog.log('Sync', `Auto-sync start, ${eligibleBooks.length} books`);
       let deviceId = stored.deviceId;
       if (!deviceId) {
         deviceId = uuidv4();
@@ -123,10 +125,12 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         },
       });
 
+      debugLog.log('Sync', 'Auto-sync completed successfully');
       setLastSyncTime(Date.now());
       loadEntries();
     } catch (err) {
       console.error('Auto-sync failed:', err);
+      debugLog.error('Sync', 'Auto-sync failed', err);
     } finally {
       setAutoSyncing(false);
     }
@@ -152,6 +156,7 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
           retry(() => source.listEntries(dirPath)),
           source.listDirectories?.(dirPath) ?? Promise.resolve([]),
         ]);
+        debugLog.log('WebDAV', `Loaded ${bookEntries.length} books + ${dirs.length} dirs from ${dirPath ?? 'root'}`);
         setEntries(bookEntries);
         setDirectories(dirs);
         setSelectMode(false);
@@ -170,6 +175,7 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         }
       } catch (err) {
         console.error('Failed to load entries:', err);
+        debugLog.error('WebDAV', `Failed to load entries from ${dirPath ?? 'root'}`, err);
         setEntries([]);
         setDirectories([]);
       } finally {
@@ -269,6 +275,7 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
     const eligibleBooks = library.filter((b) => !b.deletedAt);
     if (eligibleBooks.length === 0) return;
 
+    debugLog.log('Sync', `Manual sync start, ${eligibleBooks.length} books`);
     let deviceId = stored.deviceId;
     if (!deviceId) {
       deviceId = uuidv4();
@@ -276,7 +283,7 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
       saveSysSettings(envConfig, 'webdav', { ...stored, deviceId });
     }
 
-    beginSync(_('Syncing {{n}} / {{total}}', { n: 0, total: eligibleBooks.length }));
+      debugLog.log('Sync', `Starting sync (manual), ${eligibleBooks.length} books`);
 
     try {
       await syncLibrary(stored, eligibleBooks, {
@@ -301,10 +308,12 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         },
       });
 
+      debugLog.log('Sync', 'Manual sync completed successfully');
       endSync();
       loadEntries();
     } catch (err) {
       console.error('Sync failed:', err);
+      debugLog.error('Sync', 'Manual sync failed', err);
       endSync();
     }
   }, [isSyncing, appService, settings, library, envConfig, beginSync, updateProgress, endSync, _, loadEntries]);
