@@ -1467,7 +1467,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         />
       )}
       {showBookshelf && (
-        <>
+        <React.Fragment>
           {settings.webdav?.enabled && settings.webdav.serverUrl && (
             <div className='flex items-center gap-1 px-4 pt-2'>
               <button
@@ -1483,9 +1483,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
                 WebDAV
               </button>
             </div>
-
-      <DebugLogViewer visible={showDebugLog} onClose={() => setShowDebugLog(false)} />
           )}
+          <DebugLogViewer visible={showDebugLog} onClose={() => setShowDebugLog(false)} />
           {activeBookSource ? (
             <BookSourceShelf source={activeBookSource} onBack={handleCloseBookSource} />
           ) : libraryBooks.some((book) => !book.deletedAt) ? (
@@ -1527,7 +1526,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
               <LibraryEmptyState onImport={handleImportBooksFromFiles} />
             </div>
           )}
-        </>
+        </React.Fragment>
       )}
       {showDetailsBook && (
         <BookDetailModal

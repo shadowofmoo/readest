@@ -1,7 +1,6 @@
 import clsx from 'clsx';
 import React, { useEffect } from 'react';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { BiMoon, BiSun } from 'react-icons/bi';
 import { TbSunMoon } from 'react-icons/tb';
 import { MdZoomOut, MdZoomIn, MdCheck, MdInfoOutline } from 'react-icons/md';
@@ -39,11 +38,10 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
   onShowMetaHashDialog,
 }) => {
   const _ = useTranslation();
-  const router = useRouter();
   const { envConfig, appService } = useEnv();
   const { getConfig, getBookData } = useBookDataStore();
   const { setSettingsDialogOpen, setSettingsDialogBookKey } = useSettingsStore();
-  const { getView, getViewSettings, getViewState, getProgress, setViewSettings } = useReaderStore();
+  const { getView, getViewSettings, getViewState, setViewSettings } = useReaderStore();
   const config = getConfig(bookKey)!;
   const bookData = getBookData(bookKey)!;
   const viewSettings = getViewSettings(bookKey)!;
@@ -93,6 +91,11 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
 
   const handleSync = () => {
     eventDispatcher.dispatch('sync-book-progress', { bookKey });
+    setIsDropdownOpen?.(false);
+  };
+
+  const handleStartRSVP = () => {
+    eventDispatcher.dispatch('rsvp-start', { bookKey });
     setIsDropdownOpen?.(false);
   };
 

@@ -67,8 +67,8 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importErrors, setImportErrors] = useState<Map<string, string>>(new Map());
-  const autoSyncTimer = useRef<ReturnType<typeof setInterval>>();
-  const timeoutTimer = useRef<ReturnType<typeof setTimeout>>();
+  const autoSyncTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const timeoutTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const conflictDialog = useRef<{ resolve: (v: boolean) => void } | null>(null);
   const [conflictInfo, setConflictInfo] = useState<{
     bookTitle: string;
@@ -93,6 +93,49 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         e.title.toLowerCase().includes(searchDebounced.toLowerCase()) ||
         (e.author ?? '').toLowerCase().includes(searchDebounced.toLowerCase()))
     : entries;
+
+  const loadEntries = useCallback(
+    async (dirPath?: string) => {
+      setLoading(true);
+      setLoadingTimedOut(false);
+      clearTimeout(timeoutTimer.current);
+      timeoutTimer.current = setTimeout(() => setLoadingTimedOut(true), PROPFIND_TIMEOUT);
+
+      try {
+        const [bookEntries, dirs] = await Promise.all([
+          retry(() => source.listEntries(dirPath)),
+          source.listDirectories?.(dirPath) ?? Promise.resolve([]),
+        ]);
+        debugLog.log('WebDAV', `Loaded ${bookEntries.length} books + ${dirs.length} dirs from ${dirPath ?? 'root'}`);
+        setEntries(bookEntries);
+        setDirectories(dirs);
+        setSelectMode(false);
+        setSelected(new Set());
+        setImportErrors(new Map());
+
+        if (dirPath) {
+          const segments = dirPath.split('/').filter(Boolean);
+          const crumbs = segments.map((seg, i) => ({
+            name: seg,
+            path: '/' + segments.slice(0, i + 1).join('/'),
+          }));
+          setBreadcrumb(crumbs);
+        } else {
+          setBreadcrumb([]);
+        }
+      } catch (err) {
+        console.error('Failed to load entries:', err);
+        debugLog.error('WebDAV', `Failed to load entries from ${dirPath ?? 'root'}`, err);
+        setEntries([]);
+        setDirectories([]);
+      } finally {
+        clearTimeout(timeoutTimer.current);
+        setLoading(false);
+        setLoadingTimedOut(false);
+      }
+    },
+    [source],
+  );
 
   const doAutoSync = useCallback(async () => {
     if (autoSyncing || isSyncing || !appService) return;
@@ -143,49 +186,6 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
     }
     return () => { clearInterval(autoSyncTimer.current); };
   }, [doAutoSync, source.type]);
-
-  const loadEntries = useCallback(
-    async (dirPath?: string) => {
-      setLoading(true);
-      setLoadingTimedOut(false);
-      clearTimeout(timeoutTimer.current);
-      timeoutTimer.current = setTimeout(() => setLoadingTimedOut(true), PROPFIND_TIMEOUT);
-
-      try {
-        const [bookEntries, dirs] = await Promise.all([
-          retry(() => source.listEntries(dirPath)),
-          source.listDirectories?.(dirPath) ?? Promise.resolve([]),
-        ]);
-        debugLog.log('WebDAV', `Loaded ${bookEntries.length} books + ${dirs.length} dirs from ${dirPath ?? 'root'}`);
-        setEntries(bookEntries);
-        setDirectories(dirs);
-        setSelectMode(false);
-        setSelected(new Set());
-        setImportErrors(new Map());
-
-        if (dirPath) {
-          const segments = dirPath.split('/').filter(Boolean);
-          const crumbs = segments.map((seg, i) => ({
-            name: seg,
-            path: '/' + segments.slice(0, i + 1).join('/'),
-          }));
-          setBreadcrumb(crumbs);
-        } else {
-          setBreadcrumb([]);
-        }
-      } catch (err) {
-        console.error('Failed to load entries:', err);
-        debugLog.error('WebDAV', `Failed to load entries from ${dirPath ?? 'root'}`, err);
-        setEntries([]);
-        setDirectories([]);
-      } finally {
-        clearTimeout(timeoutTimer.current);
-        setLoading(false);
-        setLoadingTimedOut(false);
-      }
-    },
-    [source],
-  );
 
   useEffect(() => {
     loadEntries();

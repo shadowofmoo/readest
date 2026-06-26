@@ -14,6 +14,7 @@ ENV PATH="$CARGO_HOME/bin:$PATH"
 RUN apt-get update && apt-get install -y \
     curl wget unzip git ca-certificates gnupg \
     openjdk-17-jdk \
+    build-essential \
     pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 

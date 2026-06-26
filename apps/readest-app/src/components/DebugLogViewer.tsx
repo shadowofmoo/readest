@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { debugLog } from '@/services/debugLog';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/store/settingsStore';
-import { putFileBinary, buildRequestUrl, buildBasicAuthHeader } from '@/services/webdav/WebDAVClient';
+import { putFileBinary } from '@/services/webdav/WebDAVClient';
 
 interface DebugLogViewerProps {
   visible: boolean;

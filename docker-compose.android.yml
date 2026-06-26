@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile.android
     volumes:
       - ./apps/readest-app/src-tauri/gen/android/app/build/outputs:/app/apps/readest-app/src-tauri/gen/android/app/build/outputs
+      - ./apps/readest-app/src-tauri/readest.keystore:/app/apps/readest-app/src-tauri/readest.keystore
       - cargo-cache:/usr/local/cargo/registry
       - pnpm-cache:/pnpm/store
     environment:

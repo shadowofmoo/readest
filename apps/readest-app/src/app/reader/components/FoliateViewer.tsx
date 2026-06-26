@@ -744,7 +744,6 @@ const FoliateViewer: React.FC<{
 
   const applyMarginAndGap = () => {
     const viewSettings = getViewSettings(bookKey)!;
-    const viewState = getViewState(bookKey);
     const viewInsets = getViewInsets(viewSettings);
     const showDoubleBorder = viewSettings.vertical && viewSettings.doubleBorder;
     const showDoubleBorderHeader = showDoubleBorder && viewSettings.showHeader;
