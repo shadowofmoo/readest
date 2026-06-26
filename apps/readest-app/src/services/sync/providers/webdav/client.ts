@@ -353,7 +353,6 @@ export const listDirectory = async (
   if (response.status === 404) {
     throw new WebDAVRequestError('Directory not found', response.status, 'NOT_FOUND');
   }
-  }
   if (response.status !== 207 && response.status !== 200) {
     throw new WebDAVRequestError(`PROPFIND failed with status ${response.status}`, response.status);
   }

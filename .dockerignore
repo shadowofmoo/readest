@@ -47,6 +47,11 @@ certs
 .DS_Store
 Thumbs.db
 
+# Android build outputs
+**/gen/android/**/build/outputs
+**/gen/android/**/build
+**/gen/android/**/.gradle
+
 # Logs
 *.log
 npm-debug.log*

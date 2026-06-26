@@ -38,13 +38,12 @@ RUN mkdir -p $ANDROID_HOME/cmdline-tools && \
     mv cmdline-tools latest && \
     rm commandlinetools-linux-11076708_latest.zip
 
-# Accept licenses and install SDK components
 RUN yes | sdkmanager --licenses > /dev/null 2>&1 && \
     sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;28.2.13676358"
 
 WORKDIR /app
 
-# Copy dependency files first for better caching
+# --- Layer 1: pnpm dependencies (cached unless package.json/patches/packages change) ---
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/readest-app/package.json ./apps/readest-app/
 COPY patches/ ./patches/
@@ -52,11 +51,17 @@ COPY packages/ ./packages/
 
 RUN pnpm install --frozen-lockfile
 
-# Copy source
+# --- Layer 2: full source → init android project (cached unless source changes) ---
 COPY . .
 
-# Setup vendors
+RUN cd apps/readest-app && pnpm tauri android init
+
+# Add missing color resource that init doesn't generate
+RUN mkdir -p apps/readest-app/src-tauri/gen/android/app/src/main/res/values && \
+    echo '<?xml version="1.0" encoding="utf-8"?><resources><color name="ic_launcher_background">#FFFFFF</color></resources>' \
+    > apps/readest-app/src-tauri/gen/android/app/src/main/res/values/colors.xml
+
+# Setup vendors (needed before tauri build which builds Next.js)
 RUN pnpm --filter @readest/readest-app setup-vendors
 
-# Default: build Android APK
-CMD ["bash", "-c", "cd apps/readest-app && pnpm tauri android init && pnpm tauri android build -t aarch64"]
+CMD ["bash", "-c", "cd apps/readest-app && pnpm tauri android build -t aarch64"]

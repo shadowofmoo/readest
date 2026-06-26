@@ -6,11 +6,15 @@ services:
     volumes:
       - ./apps/readest-app/src-tauri/gen/android/app/build/outputs:/app/apps/readest-app/src-tauri/gen/android/app/build/outputs
       - ./apps/readest-app/src-tauri/readest.keystore:/app/apps/readest-app/src-tauri/readest.keystore
-      - cargo-cache:/usr/local/cargo/registry
-      - pnpm-cache:/pnpm/store
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+      - cargo-target-startup:/app/apps/readest-app/src-tauri/target
+      - gradle-cache:/root/.gradle
     environment:
       - NDK_HOME=/opt/android-sdk/ndk/28.2.13676358
 
 volumes:
-  cargo-cache:
-  pnpm-cache:
+  cargo-registry:
+  cargo-git:
+  cargo-target-startup:
+  gradle-cache:

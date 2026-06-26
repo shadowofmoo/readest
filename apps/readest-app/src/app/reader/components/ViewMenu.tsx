@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { BiMoon, BiSun } from 'react-icons/bi';
 import { TbSunMoon } from 'react-icons/tb';
 import { MdZoomOut, MdZoomIn, MdCheck, MdInfoOutline } from 'react-icons/md';
-import { MdSync, MdSyncProblem, MdRemove, MdAdd, MdContrast } from 'react-icons/md';
+import { MdSync, MdRemove, MdAdd, MdContrast } from 'react-icons/md';
 import { IoMdExpand } from 'react-icons/io';
 import { TbArrowAutofitWidth } from 'react-icons/tb';
 import { TbColumns1, TbColumns2 } from 'react-icons/tb';
