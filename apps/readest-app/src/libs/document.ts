@@ -1,6 +1,7 @@
 import { BookFormat } from '@/types/book';
 import { Collection, Contributor, Identifier, LanguageMap } from '@/utils/book';
 import { configureZip } from '@/utils/zip';
+import { debugLog } from '@/services/debugLog';
 import * as epubcfi from 'foliate-js/epubcfi.js';
 
 export const CFI = epubcfi;
@@ -343,6 +344,10 @@ export class DocumentLoader {
     if (!this.file.size) {
       throw new Error('File is empty');
     }
+    const fileName = this.file.name || '(unnamed)';
+    const fileSizeMB = (this.file.size / 1024 / 1024).toFixed(1);
+    const t0 = performance.now();
+    let detectedPhase = '';
     try {
       // A raw .txt has no binary book format, so the checks below all miss and
       // `book` stays null. Convert it to EPUB in-memory first (the same
@@ -350,8 +355,11 @@ export class DocumentLoader {
       // stores the already-converted EPUB, but the Android "Open with" transient
       // path points the book at the original .txt, so it reaches us unconverted.
       if (this.isTxt()) {
+        debugLog.log('Loader', `Opening TXT "${fileName}" (${fileSizeMB}MB)`);
+        const tTxt = performance.now();
         const { TxtToEpubConverter } = await import('@/utils/txt');
         const { file: epubFile } = await new TxtToEpubConverter().convert({ file: this.file });
+        debugLog.log('Loader', `TXT→EPUB converted in ${(performance.now() - tTxt).toFixed(0)}ms`);
         return await new DocumentLoader(epubFile).open();
       }
       if (await this.isZip()) {
@@ -362,35 +370,56 @@ export class DocumentLoader {
         const isEPUBLike = !this.isCBZ() && !this.isFBZ();
         let prefetch: { textCache: Map<string, string>; sizes: Map<string, number> } | undefined;
         if (isEPUBLike && this.nativeFilePath) {
+          const tPrefetch = performance.now();
           const { tryNativePrefetchEpub } = await import('@/utils/tauriEpubBridge');
           const native = await tryNativePrefetchEpub(this.nativeFilePath);
           if (native) {
             prefetch = { textCache: native.textCache, sizes: native.sizes };
+            debugLog.log('Loader', `Native EPUB prefetch OK in ${(performance.now() - tPrefetch).toFixed(0)}ms`);
           }
         }
+        detectedPhase = 'makeZipLoader';
+        const tZip = performance.now();
         const loader = await this.makeZipLoader(prefetch);
+        debugLog.log('Loader', `ZIP index built in ${(performance.now() - tZip).toFixed(0)}ms`);
         const { entries } = loader;
 
         if (this.isCBZ()) {
+          detectedPhase = 'CBZ parse';
+          const tParse = performance.now();
           const { makeComicBook } = await import('foliate-js/comic-book.js');
           book = await makeComicBook(loader, this.file);
           format = 'CBZ';
+          debugLog.log('Loader', `CBZ "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
         } else if (this.isFBZ()) {
+          detectedPhase = 'FBZ parse';
+          const tParse = performance.now();
           const entry = entries.find((entry) => entry.filename.endsWith(`.${EXTS.FB2}`));
           const blob = await loader.loadBlob((entry ?? entries[0]!).filename);
           const { makeFB2 } = await import('foliate-js/fb2.js');
           book = await makeFB2(blob);
           format = 'FBZ';
+          debugLog.log('Loader', `FBZ "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
         } else {
+          detectedPhase = 'EPUB init';
+          const tParse = performance.now();
           const { EPUB } = await import('foliate-js/epub.js');
           book = await new EPUB(loader).init();
           format = 'EPUB';
+          debugLog.log('Loader', `EPUB "${fileName}" (${fileSizeMB}MB) parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
         }
       } else if (await this.isPDF()) {
+        detectedPhase = 'PDF parse';
+        const tParse = performance.now();
+        debugLog.log('Loader', `Opening PDF "${fileName}" (${fileSizeMB}MB)`);
         const { makePDF } = await import('foliate-js/pdf.js');
         book = await makePDF(this.file);
         format = 'PDF';
+        debugLog.log('Loader', `PDF "${fileName}" (${fileSizeMB}MB) parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
       } else if (await (await import('foliate-js/mobi.js')).isMOBI(this.file)) {
+        detectedPhase = 'MOBI parse';
+        const tParse = performance.now();
+        debugLog.log('Loader', `Opening MOBI "${fileName}" (${fileSizeMB}MB)`);
         const fflate = await import('foliate-js/vendor/fflate.js');
         const { MOBI } = await import('foliate-js/mobi.js');
         book = await new MOBI({ unzlib: fflate.unzlibSync }).open(this.file);
@@ -405,13 +434,20 @@ export class DocumentLoader {
           default:
             format = 'MOBI';
         }
+        debugLog.log('Loader', `${format} "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
       } else if (this.isFB2()) {
+        detectedPhase = 'FB2 parse';
+        const tParse = performance.now();
+        debugLog.log('Loader', `Opening FB2 "${fileName}" (${fileSizeMB}MB)`);
         const { makeFB2 } = await import('foliate-js/fb2.js');
         book = await makeFB2(this.file);
         format = 'FB2';
+        debugLog.log('Loader', `FB2 "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
       }
+      const totalElapsed = (performance.now() - t0).toFixed(0);
+      debugLog.log('Loader', `${format} "${fileName}" total open time: ${totalElapsed}ms`);
     } catch (e: unknown) {
-      console.error('Failed to open document:', e);
+      debugLog.error('Loader', `Failed to open "${fileName}" (phase: ${detectedPhase})`, e);
       if (e instanceof Error && e.message?.includes('not a valid zip')) {
         throw new Error('Unsupported or corrupted book file');
       }

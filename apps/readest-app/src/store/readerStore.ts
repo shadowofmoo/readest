@@ -27,6 +27,7 @@ import { BookData, useBookDataStore } from './bookDataStore';
 import { useLibraryStore } from './libraryStore';
 import { clearBookProgress, getBookProgress, setBookProgress } from './readerProgressStore';
 import { uniqueId } from '@/utils/misc';
+import { debugLog } from '@/services/debugLog';
 
 interface ViewState {
   /* Unique key for each book view */
@@ -164,6 +165,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         },
       },
     }));
+    let phase = 'init';
     try {
       const appService = await envConfig.getAppService();
       const { settings } = useSettingsStore.getState();
@@ -175,32 +177,44 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         );
         throw new Error('Book not found');
       }
+      const t0 = performance.now();
+      debugLog.log('Book', `Opening "${book.title}" (${book.format}, ${book.hash.slice(0, 8)})`);
       const isPseStream = !!book.url && isPseStreamFileName(book.url);
       let bookDoc = bookData?.bookDoc;
       let file: File | null = bookData?.file ?? null;
       if (!bookDoc || (!isPseStream && !file) || reload) {
         console.log('Loading book', key);
         if (isPseStream) {
+          phase = 'PSE stream';
           const data = parsePseStreamFileName(book.url!);
           const doc = await openPseStreamBook(data);
           bookDoc = doc.book;
           file = null;
         } else {
+          phase = 'loadBookContent';
+          const tLoad = performance.now();
           const content = (await appService.loadBookContent(book)) as BookContent;
           file = content.file;
+          debugLog.log('Book', `  File loaded (${(file.size / 1024 / 1024).toFixed(1)}MB) in ${(performance.now() - tLoad).toFixed(0)}ms`);
           let nativeFilePath: string | null = null;
           try {
             nativeFilePath = await appService.resolveNativeBookFilePath(book);
           } catch (err) {
             console.warn('resolveNativeBookFilePath failed', err);
           }
+          phase = 'DocumentLoader.open';
+          const tParse = performance.now();
           const doc = await new DocumentLoader(file, {
             nativeFilePath: nativeFilePath ?? undefined,
           }).open();
           bookDoc = doc.book;
+          debugLog.log('Book', `  Document opened in ${(performance.now() - tParse).toFixed(0)}ms`);
         }
       }
+      phase = 'loadBookConfig';
+      const tConfig = performance.now();
       const config = await appService.loadBookConfig(book, settings);
+      debugLog.log('Book', `  Config loaded in ${(performance.now() - tConfig).toFixed(0)}ms`);
       // Import annotations from third-party readers on first open
       if (bookDoc.metadata.identifier) {
         const { getAnnotationProviders } = await import('@/services/annotation');
@@ -222,9 +236,12 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       config.booknotes = config.booknotes?.filter((booknote) => booknote.cfi) ?? [];
       // Load cached book navigation (TOC + section fragments) or compute and persist.
       if (book.format === 'EPUB' && bookDoc.rendition?.layout !== 'pre-paginated') {
+        phase = 'bookNav';
+        const tNav = performance.now();
         const cachedNav = await appService.loadBookNav(book);
         if (cachedNav?.version === BOOK_NAV_VERSION && process.env.NODE_ENV === 'production') {
           hydrateBookNav(bookDoc, cachedNav);
+          debugLog.log('Book', `  Nav loaded from cache in ${(performance.now() - tNav).toFixed(0)}ms`);
         } else {
           const freshNav = await computeBookNav(bookDoc);
           hydrateBookNav(bookDoc, freshNav);
@@ -233,8 +250,10 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
           } catch (e) {
             console.warn('Failed to persist book nav cache:', e);
           }
+          debugLog.log('Book', `  Nav computed in ${(performance.now() - tNav).toFixed(0)}ms`);
         }
       }
+      phase = 'updateToc';
       await updateToc(
         bookDoc,
         config.viewSettings?.sortedTOC ?? false,
@@ -282,6 +301,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       }));
       const configViewSettings = config.viewSettings!;
       const globalViewSettings = settings.globalViewSettings;
+      debugLog.log('Book', `  Total: ${(performance.now() - t0).toFixed(0)}ms`);
       set((state) => ({
         viewStates: {
           ...state.viewStates,
@@ -305,6 +325,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       }));
     } catch (error) {
       console.error(error);
+      debugLog.error('Book', `Failed to open (phase: ${phase})`, error);
       set((state) => ({
         viewStates: {
           ...state.viewStates,
