@@ -251,6 +251,7 @@ const FoliateViewer: React.FC<{
                 'language',
                 'sanitizer',
                 'simplecc',
+                'nbsp',
                 'proofread',
                 'warichu',
               ],
@@ -684,6 +685,14 @@ const FoliateViewer: React.FC<{
       } else {
         view.renderer.removeAttribute('animated');
       }
+      // iOS WebKit composites large/persistent page layers without the Android
+      // high-DPR Blink freeze, so opt this renderer into the GPU-accelerated
+      // page-turn path (persistent compositor layers + no main-thread
+      // rafAnimateScroll fallback) to keep 120Hz ProMotion turns smooth
+      // (readest#4768).
+      if (appService?.isIOSApp) {
+        view.renderer.setAttribute('gpu-composite', '');
+      }
       if (viewSettings.disableSwipe) {
         view.renderer.setAttribute('no-swipe', '');
       } else {
@@ -819,6 +828,7 @@ const FoliateViewer: React.FC<{
     viewSettings?.overrideColor,
     viewSettings?.invertImgColorInDark,
     viewSettings?.applyThemeToPDF,
+    viewSettings?.contrast,
     viewSettings?.hideScrollbar,
   ]);
 

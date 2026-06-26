@@ -1,6 +1,6 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { isTauriAppPlatform } from '../environment';
-import { getAPIBaseUrl } from '../environment';
+import { isTauriAppPlatform } from '@/services/environment';
+import { getAPIBaseUrl } from '@/services/environment';
 
 const WEBDAV_PROXY_URL = `${getAPIBaseUrl()}/webdav/proxy`;
 
@@ -33,6 +33,13 @@ export interface WebDAVEntry {
   size?: number;
   /** Server-provided modification timestamp, if any. */
   lastModified?: string;
+  /**
+   * Server-provided creation timestamp (`<creationdate>`), if any. Many
+   * servers (NextCloud, sabre/dav, Synology) report it; some omit it, so
+   * callers must treat `undefined` as "unknown" and not assume it equals
+   * {@link lastModified}.
+   */
+  created?: string;
 }
 
 export interface WebDAVConfig {
@@ -66,6 +73,7 @@ const PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8" ?>
     <D:resourcetype/>
     <D:getcontentlength/>
     <D:getlastmodified/>
+    <D:creationdate/>
   </D:prop>
 </D:propfind>`;
 
@@ -316,27 +324,38 @@ export const listDirectory = async (
   const authHeader = buildAuthHeader(config.username, config.password);
 
   let response: Response;
-  if (isTauriAppPlatform()) {
-    const fetchFn = getFetch();
-    response = await fetchFn(url, {
-      method: 'PROPFIND',
-      headers: {
-        Authorization: authHeader,
-        Depth: '1',
-        'Content-Type': 'application/xml; charset=utf-8',
-      },
-      body: PROPFIND_BODY,
-    });
-  } else {
-    const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&method=PROPFIND&depth=1`;
-    response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/xml; charset=utf-8' },
-      body: PROPFIND_BODY,
-    });
+  try {
+    if (isTauriAppPlatform()) {
+      const fetchFn = getFetch();
+      response = await fetchFn(url, {
+        method: 'PROPFIND',
+        headers: {
+          Authorization: authHeader,
+          Depth: '1',
+          'Content-Type': 'application/xml; charset=utf-8',
+        },
+        body: PROPFIND_BODY,
+      });
+    } else {
+      const proxyUrl = `${WEBDAV_PROXY_URL}?url=${encodeURIComponent(url)}&auth=${encodeURIComponent(authHeader)}&method=PROPFIND&depth=1`;
+      response = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+        body: PROPFIND_BODY,
+      });
+    }
+  } catch (e) {
+    throw new WebDAVRequestError((e as Error).message || 'Network error', undefined, 'NETWORK');
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new WebDAVRequestError('Authentication failed', response.status, 'AUTH_FAILED');
+  }
+  if (response.status === 404) {
+    throw new WebDAVRequestError('Directory not found', response.status, 'NOT_FOUND');
+  }
   }
   if (response.status !== 207 && response.status !== 200) {
-    throw new Error(`PROPFIND failed with status ${response.status}`);
+    throw new WebDAVRequestError(`PROPFIND failed with status ${response.status}`, response.status);
   }
   const xml = await response.text();
   let serverOrigin = '';
@@ -368,12 +387,14 @@ export const listDirectory = async (
     const name = segments[segments.length - 1] ?? trimmedPath;
     const sizeStr = extractTagText(block, 'getcontentlength');
     const lastModified = extractTagText(block, 'getlastmodified');
+    const created = extractTagText(block, 'creationdate');
     entries.push({
       name,
       path: trimmedPath,
       isDirectory: isDir,
       size: sizeStr && !isDir ? Number(sizeStr) : undefined,
       lastModified,
+      created,
     });
   }
 

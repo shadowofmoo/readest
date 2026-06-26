@@ -172,6 +172,9 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
 
 export const DEFAULT_MOBILE_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   libraryColumns: 3,
+  // Import files opened via the system "Open with" chooser into the library by
+  // default so they persist and sync, instead of opening them transiently.
+  autoImportBooksOnOpen: true,
 };
 
 export const HIGHLIGHT_COLOR_HEX: Record<HighlightColor, string> = {
@@ -294,6 +297,7 @@ export const DEFAULT_BOOK_STYLE: BookStyle = {
   keepCoverSpread: true,
   invertImgColorInDark: false,
   applyThemeToPDF: false,
+  contrast: 100,
 };
 
 export const DEFAULT_MOBILE_VIEW_SETTINGS: Partial<ViewSettings> = {
@@ -411,6 +415,8 @@ export const DEFAULT_WORD_LENS_CONFIG: WordLensConfig = {
   wordLensEnabled: false,
   wordLensLevel: 3,
   wordLensHintLang: '',
+  wordLensGlossFontSize: 0.5,
+  wordLensGlossColor: '',
 };
 
 export const DEFAULT_SCREEN_CONFIG: ScreenConfig = {
@@ -419,9 +425,12 @@ export const DEFAULT_SCREEN_CONFIG: ScreenConfig = {
 
 export const DEFAULT_BOOK_SEARCH_CONFIG: BookSearchConfig = {
   scope: 'book',
+  mode: 'contains',
   matchCase: false,
-  matchWholeWords: false,
   matchDiacritics: false,
+  nearbyWords: 10,
+  // kept for sync wire back-compat with pre-v3 clients (mirrors mode === 'whole-words')
+  matchWholeWords: false,
 };
 
 export const DEFAULT_VIEW_SETTINGS_CONFIG: ViewSettingsConfig = {
@@ -829,6 +838,10 @@ export const CHECK_UPDATE_INTERVAL_SEC = 24 * 60 * 60;
 export const MAX_ZOOM_LEVEL = 500;
 export const MIN_ZOOM_LEVEL = 50;
 export const ZOOM_STEP = 10;
+
+export const MAX_CONTRAST = 300;
+export const MIN_CONTRAST = 50;
+export const CONTRAST_STEP = 10;
 
 export const SHOW_UNREAD_STATUS_BADGE = false;
 

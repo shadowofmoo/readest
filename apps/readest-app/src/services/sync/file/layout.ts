@@ -3,9 +3,10 @@ import { EXTS } from '@/libs/document';
 import { makeSafeFilename } from '@/utils/misc';
 
 /**
- * Layout convention for the WebDAV "Readest" subtree under the user's
- * configured rootPath. The whole sync feature is scoped to this subtree so
- * we never touch unrelated files in the user's WebDAV.
+ * Layout convention for the "Readest" subtree under the user's configured
+ * rootPath, shared by every file-based sync provider (WebDAV today; Google
+ * Drive / Dropbox / FTP / SFTP in future). The whole sync feature is scoped
+ * to this subtree so we never touch unrelated files in the user's storage.
  *
  * Tree:
  *   <rootPath>/
@@ -19,14 +20,18 @@ import { makeSafeFilename } from '@/utils/misc';
  *
  * Why hash directories: avoids title collisions and makes title edits a
  * pure metadata operation (no remote rename). The friendly file name
- * inside the directory keeps the WebDAV client experience readable.
+ * inside the directory keeps the remote browse experience readable.
+ *
+ * These builders are pure functions of `rootPath` — no transport knowledge.
+ * The directory/file names below are a FROZEN wire layout: changing them
+ * would orphan every existing remote tree, so they must stay byte-stable.
  */
 
-export const WEBDAV_BASE_DIR = 'Readest';
-export const WEBDAV_BOOKS_DIR = 'books';
-export const WEBDAV_LIBRARY_FILE = 'library.json';
-export const WEBDAV_BOOK_CONFIG_FILE = 'config.json';
-export const WEBDAV_BOOK_COVER_FILE = 'cover.png';
+export const SYNC_BASE_DIR = 'Readest';
+export const SYNC_BOOKS_DIR = 'books';
+export const SYNC_LIBRARY_FILE = 'library.json';
+export const SYNC_BOOK_CONFIG_FILE = 'config.json';
+export const SYNC_BOOK_COVER_FILE = 'cover.png';
 
 /**
  * Normalise the user-entered rootPath so the rest of the code can rely on
@@ -48,19 +53,19 @@ const join = (...parts: string[]): string => {
 
 /** Absolute path of the Readest base directory (where library.json lives). */
 export const buildBasePath = (rootPath: string): string =>
-  join(normalizeRoot(rootPath), WEBDAV_BASE_DIR);
+  join(normalizeRoot(rootPath), SYNC_BASE_DIR);
 
 /** Absolute path of the per-book directory keyed by hash. */
 export const buildBookDirPath = (rootPath: string, bookHash: string): string =>
-  join(buildBasePath(rootPath), WEBDAV_BOOKS_DIR, bookHash);
+  join(buildBasePath(rootPath), SYNC_BOOKS_DIR, bookHash);
 
 /** Absolute path of a book's config.json (progress + booknotes). */
 export const buildBookConfigPath = (rootPath: string, bookHash: string): string =>
-  join(buildBookDirPath(rootPath, bookHash), WEBDAV_BOOK_CONFIG_FILE);
+  join(buildBookDirPath(rootPath, bookHash), SYNC_BOOK_CONFIG_FILE);
 
 /** Absolute path of the shared library.json index. */
 export const buildLibraryPath = (rootPath: string): string =>
-  join(buildBasePath(rootPath), WEBDAV_LIBRARY_FILE);
+  join(buildBasePath(rootPath), SYNC_LIBRARY_FILE);
 
 /**
  * Friendly book file name "<sanitized title>.<ext>" used inside the
@@ -83,7 +88,7 @@ export const buildBookFilePath = (rootPath: string, book: Book): string =>
 
 /** Absolute path of the book cover image. */
 export const buildBookCoverPath = (rootPath: string, bookHash: string): string =>
-  join(buildBookDirPath(rootPath, bookHash), WEBDAV_BOOK_COVER_FILE);
+  join(buildBookDirPath(rootPath, bookHash), SYNC_BOOK_COVER_FILE);
 
 /**
  * Walk the parents of an absolute path, top-down, so callers can
