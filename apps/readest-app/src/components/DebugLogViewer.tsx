@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { debugLog } from '@/services/debugLog';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useThemeStore } from '@/store/themeStore';
+import { useEnv } from '@/context/EnvContext';
 import { putFileBinary } from '@/services/sync/providers/webdav/client';
 
 interface DebugLogViewerProps {
@@ -16,6 +18,14 @@ const DebugLogViewer: React.FC<DebugLogViewerProps> = ({ visible, onClose }) => 
   const settings = useSettingsStore((s) => s.settings);
   const [, setTick] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const { appService } = useEnv();
+  const { safeAreaInsets: insets, statusBarHeight, systemUIVisible } = useThemeStore();
+  const safeTopPadding = appService?.hasSafeAreaInset
+    ? Math.max(insets.top, systemUIVisible ? statusBarHeight : 0)
+    : 0;
+  const safeBottomPadding = appService?.hasSafeAreaInset
+    ? insets.bottom * 0.33
+    : 0;
 
   useEffect(() => {
     const fn = () => setTick((n) => n + 1);
@@ -62,7 +72,13 @@ const DebugLogViewer: React.FC<DebugLogViewerProps> = ({ visible, onClose }) => 
   };
 
   return (
-    <div className='fixed inset-0 z-[100] flex flex-col bg-base-100'>
+    <div
+      className='fixed inset-0 z-[100] flex flex-col bg-base-100'
+      style={{
+        paddingTop: `${safeTopPadding}px`,
+        paddingBottom: `${safeBottomPadding}px`,
+      }}
+    >
       <div className='flex items-center gap-2 border-b border-base-300 px-4 py-2'>
         <h3 className='text-lg font-semibold'>{_('Debug Log')}</h3>
         <span className='text-xs text-base-content/50'>({entries.length} entries)</span>
