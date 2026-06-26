@@ -760,9 +760,7 @@ const FoliateViewer: React.FC<{
     const showTopHeader = viewSettings.showHeader && !viewSettings.vertical;
     const showBottomFooter = viewSettings.showFooter && !viewSettings.vertical;
     const moreTopInset = showTopHeader ? Math.max(0, 16 - insets.top) : 0;
-    const moreBottomInset = showBottomFooter
-      ? Math.max(0, 16 - insets.bottom)
-      : 0;
+    const moreBottomInset = showBottomFooter ? Math.max(0, 16 - insets.bottom) : 0;
     const moreRightInset = showDoubleBorderHeader ? 32 : 0;
     const moreLeftInset = showDoubleBorderFooter ? 32 : 0;
     const topMargin = (showTopHeader ? insets.top : viewInsets.top) + moreTopInset;

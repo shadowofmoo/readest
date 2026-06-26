@@ -7,11 +7,13 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useWebDAVSyncStore } from '@/store/webdavSyncStore';
 import type { BookSource, BookSourceEntry, BookSourceDirectory } from '@/services/bookSources';
-import { syncLibrary } from '@/services/webdav/WebDAVSync';
+import { FileSyncEngine } from '@/services/sync/file/engine';
+import { createWebDAVProvider } from '@/services/sync/providers/webdav/WebDAVProvider';
+import { createAppLocalStore } from '@/services/sync/file/appLocalStore';
 import { ingestFile } from '@/services/ingestService';
 import { buildBookLookupIndex } from '@/services/bookService';
 import { navigateToReader } from '@/utils/nav';
-import { getLocalBookFilename } from '@/utils/book';
+
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { debugLog } from '@/services/debugLog';
@@ -76,10 +78,13 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
     remoteTime: number;
   } | null>(null);
 
-  const isBookCached = useCallback((entry: BookSourceEntry) => {
-    const index = buildBookLookupIndex(library);
-    return index.byFilePath.has(entry.path);
-  }, [library]);
+  const isBookCached = useCallback(
+    (entry: BookSourceEntry) => {
+      const index = buildBookLookupIndex(library);
+      return index.byFilePath.has(entry.path);
+    },
+    [library],
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
@@ -89,9 +94,11 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
   }, [searchQuery]);
 
   const filteredEntries = searchDebounced
-    ? entries.filter((e) =>
-        e.title.toLowerCase().includes(searchDebounced.toLowerCase()) ||
-        (e.author ?? '').toLowerCase().includes(searchDebounced.toLowerCase()))
+    ? entries.filter(
+        (e) =>
+          e.title.toLowerCase().includes(searchDebounced.toLowerCase()) ||
+          (e.author ?? '').toLowerCase().includes(searchDebounced.toLowerCase()),
+      )
     : entries;
 
   const loadEntries = useCallback(
@@ -106,7 +113,10 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
           retry(() => source.listEntries(dirPath)),
           source.listDirectories?.(dirPath) ?? Promise.resolve([]),
         ]);
-        debugLog.log('WebDAV', `Loaded ${bookEntries.length} books + ${dirs.length} dirs from ${dirPath ?? 'root'}`);
+        debugLog.log(
+          'WebDAV',
+          `Loaded ${bookEntries.length} books + ${dirs.length} dirs from ${dirPath ?? 'root'}`,
+        );
         setEntries(bookEntries);
         setDirectories(dirs);
         setSelectMode(false);
@@ -153,19 +163,13 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         saveSysSettings(envConfig, 'webdav', { ...stored, deviceId });
       }
 
-      await syncLibrary(stored, eligibleBooks, {
+      const provider = createWebDAVProvider(stored);
+      const store = createAppLocalStore({ appService, settings, envConfig });
+      const engine = new FileSyncEngine(provider, store);
+      await engine.syncLibrary(eligibleBooks, {
         strategy: 'silent',
         syncBooks: true,
         deviceId: deviceId as string,
-        loadConfig: (book) => appService.loadBookConfig(book, settings),
-        loadBookFile: async (book) => {
-          const fp = book.filePath ?? getLocalBookFilename(book);
-          const base = book.filePath ? 'None' : 'Books';
-          if (!(await appService.exists(fp, base))) return null;
-          const file = await appService.openFile(fp, base);
-          const bytes = await file.arrayBuffer();
-          return { bytes, size: bytes.byteLength };
-        },
       });
 
       debugLog.log('Sync', 'Auto-sync completed successfully');
@@ -184,7 +188,9 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
       doAutoSync();
       autoSyncTimer.current = setInterval(doAutoSync, AUTO_SYNC_INTERVAL);
     }
-    return () => { clearInterval(autoSyncTimer.current); };
+    return () => {
+      clearInterval(autoSyncTimer.current);
+    };
   }, [doAutoSync, source.type]);
 
   useEffect(() => {
@@ -201,7 +207,11 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
     async (entry: BookSourceEntry) => {
       if (!appService || opening === entry.id) return;
       setOpening(entry.id);
-      setImportErrors((prev) => { const n = new Map(prev); n.delete(entry.id); return n; });
+      setImportErrors((prev) => {
+        const n = new Map(prev);
+        n.delete(entry.id);
+        return n;
+      });
 
       try {
         const data = await retry(() => source.downloadBook(entry));
@@ -219,7 +229,11 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         }
       } catch (err) {
         console.error('Failed to open book:', err);
-        setImportErrors((prev) => { const n = new Map(prev); n.set(entry.id, String(err)); return n; });
+        setImportErrors((prev) => {
+          const n = new Map(prev);
+          n.set(entry.id, String(err));
+          return n;
+        });
       } finally {
         setOpening(null);
       }
@@ -245,10 +259,22 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
           { file, books: library, lookupIndex },
           { appService, settings, isLoggedIn: false },
         );
-        setImporting((prev) => { const n = new Set(prev); n.delete(entry.id); return n; });
+        setImporting((prev) => {
+          const n = new Set(prev);
+          n.delete(entry.id);
+          return n;
+        });
       } catch (err) {
-        setImporting((prev) => { const n = new Set(prev); n.delete(entry.id); return n; });
-        setImportErrors((prev) => { const n = new Map(prev); n.set(entry.id, String(err)); return n; });
+        setImporting((prev) => {
+          const n = new Set(prev);
+          n.delete(entry.id);
+          return n;
+        });
+        setImportErrors((prev) => {
+          const n = new Map(prev);
+          n.set(entry.id, String(err));
+          return n;
+        });
       }
     }
 
@@ -261,7 +287,8 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
   const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
@@ -283,22 +310,16 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
       saveSysSettings(envConfig, 'webdav', { ...stored, deviceId });
     }
 
-      debugLog.log('Sync', `Starting sync (manual), ${eligibleBooks.length} books`);
+    debugLog.log('Sync', `Starting sync (manual), ${eligibleBooks.length} books`);
 
     try {
-      await syncLibrary(stored, eligibleBooks, {
+      const provider = createWebDAVProvider(stored);
+      const store = createAppLocalStore({ appService, settings, envConfig });
+      const engine = new FileSyncEngine(provider, store);
+      await engine.syncLibrary(eligibleBooks, {
         strategy: 'silent',
         syncBooks: true,
         deviceId: deviceId as string,
-        loadConfig: (book) => appService.loadBookConfig(book, settings),
-        loadBookFile: async (book) => {
-          const fp = book.filePath ?? getLocalBookFilename(book);
-          const base = book.filePath ? 'None' : 'Books';
-          if (!(await appService.exists(fp, base))) return null;
-          const file = await appService.openFile(fp, base);
-          const bytes = await file.arrayBuffer();
-          return { bytes, size: bytes.byteLength };
-        },
         onProgress: ({ index, total, action }) => {
           updateProgress(
             action === 'uploading'
@@ -316,21 +337,50 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
       debugLog.error('Sync', 'Manual sync failed', err);
       endSync();
     }
-  }, [isSyncing, appService, settings, library, envConfig, beginSync, updateProgress, endSync, _, loadEntries]);
+  }, [
+    isSyncing,
+    appService,
+    settings,
+    library,
+    envConfig,
+    beginSync,
+    updateProgress,
+    endSync,
+    _,
+    loadEntries,
+  ]);
 
-  const navigateToDir = useCallback((dirPath: string) => { loadEntries(dirPath); }, [loadEntries]);
-  const navigateToCrumb = useCallback((path: string) => { loadEntries(path); }, [loadEntries]);
+  const navigateToDir = useCallback(
+    (dirPath: string) => {
+      loadEntries(dirPath);
+    },
+    [loadEntries],
+  );
+  const navigateToCrumb = useCallback(
+    (path: string) => {
+      loadEntries(path);
+    },
+    [loadEntries],
+  );
 
   return (
     <div className='flex min-h-0 flex-grow flex-col'>
       <div className='flex items-center gap-2 px-4 py-2'>
-        <button className='btn btn-ghost btn-sm' onClick={onBack}>← {_('Back')}</button>
+        <button className='btn btn-ghost btn-sm' onClick={onBack}>
+          ← {_('Back')}
+        </button>
         <div className='text-sm breadcrumbs'>
           <ul>
-            <li><button onClick={() => loadEntries()} className='link link-hover'>{source.name}</button></li>
+            <li>
+              <button onClick={() => loadEntries()} className='link link-hover'>
+                {source.name}
+              </button>
+            </li>
             {breadcrumb.map((crumb) => (
               <li key={crumb.path}>
-                <button onClick={() => navigateToCrumb(crumb.path)} className='link link-hover'>{crumb.name}</button>
+                <button onClick={() => navigateToCrumb(crumb.path)} className='link link-hover'>
+                  {crumb.name}
+                </button>
               </li>
             ))}
           </ul>
@@ -343,20 +393,39 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
           </span>
         )}
         {source.type === 'webdav' && entries.length > 0 && (
-          <button className='btn btn-ghost btn-sm' onClick={() => { setSelectMode(!selectMode); setSelected(new Set()); }}>
+          <button
+            className='btn btn-ghost btn-sm'
+            onClick={() => {
+              setSelectMode(!selectMode);
+              setSelected(new Set());
+            }}
+          >
             {selectMode ? _('Cancel') : _('Select')}
           </button>
         )}
         {source.type === 'webdav' && (
-          <button className={`btn btn-sm ${isSyncing ? 'btn-disabled' : 'btn-primary'}`} onClick={handleSyncToWebDAV} disabled={isSyncing}>
-            {isSyncing ? <><span className='loading loading-spinner loading-xs'></span>{progressLabel || _('Syncing...')}</> : <>☁️ {_('Sync')}</>}
+          <button
+            className={`btn btn-sm ${isSyncing ? 'btn-disabled' : 'btn-primary'}`}
+            onClick={handleSyncToWebDAV}
+            disabled={isSyncing}
+          >
+            {isSyncing ? (
+              <>
+                <span className='loading loading-spinner loading-xs'></span>
+                {progressLabel || _('Syncing...')}
+              </>
+            ) : (
+              <>☁️ {_('Sync')}</>
+            )}
           </button>
         )}
       </div>
 
       {selectMode && selected.size > 0 && (
         <div className='flex items-center gap-2 px-4 py-2 bg-primary/10'>
-          <span className='text-sm font-medium'>{_('{{count}} selected', { count: selected.size })}</span>
+          <span className='text-sm font-medium'>
+            {_('{{count}} selected', { count: selected.size })}
+          </span>
           <button className='btn btn-primary btn-sm' onClick={handleBatchImport}>
             {_('Import Selected')}
           </button>
@@ -378,7 +447,9 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
       {loading ? (
         <div className='flex flex-grow flex-col items-center justify-center gap-2'>
           <span className='loading loading-spinner loading-lg'></span>
-          {loadingTimedOut && <p className='text-sm text-base-content/60'>{_('Taking longer than expected...')}</p>}
+          {loadingTimedOut && (
+            <p className='text-sm text-base-content/60'>{_('Taking longer than expected...')}</p>
+          )}
         </div>
       ) : (
         <div className='flex-grow overflow-y-auto px-4 pb-4'>
@@ -386,7 +457,11 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
             <div className='mb-4'>
               <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'>
                 {directories.map((dir) => (
-                  <button key={dir.path} className='bg-base-200 hover:bg-base-300 flex items-center gap-2 rounded-lg p-3 text-left transition-colors' onClick={() => navigateToDir(dir.path)}>
+                  <button
+                    key={dir.path}
+                    className='bg-base-200 hover:bg-base-300 flex items-center gap-2 rounded-lg p-3 text-left transition-colors'
+                    onClick={() => navigateToDir(dir.path)}
+                  >
                     <span className='text-2xl'>📁</span>
                     <span className='truncate text-sm font-medium'>{dir.name}</span>
                   </button>
@@ -405,24 +480,45 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
                   return (
                     <div
                       key={entry.id}
-                      className={`relative cursor-pointer rounded-lg p-3 transition-colors ${selectMode
-                        ? selected.has(entry.id) ? 'bg-primary/20 ring-2 ring-primary' : 'bg-base-200 hover:bg-base-300'
-                        : 'bg-base-200 hover:bg-base-300 group'}`}
-                      onClick={() => { if (selectMode) toggleSelect(entry.id); else handleOpenBook(entry); }}
+                      className={`relative cursor-pointer rounded-lg p-3 transition-colors ${
+                        selectMode
+                          ? selected.has(entry.id)
+                            ? 'bg-primary/20 ring-2 ring-primary'
+                            : 'bg-base-200 hover:bg-base-300'
+                          : 'bg-base-200 hover:bg-base-300 group'
+                      }`}
+                      onClick={() => {
+                        if (selectMode) toggleSelect(entry.id);
+                        else handleOpenBook(entry);
+                      }}
                     >
-                      {cached && <div className='absolute top-2 right-2 badge badge-success badge-xs'>✓</div>}
-                      {error && <div className='absolute top-2 right-2 badge badge-error badge-xs'>!</div>}
+                      {cached && (
+                        <div className='absolute top-2 right-2 badge badge-success badge-xs'>✓</div>
+                      )}
+                      {error && (
+                        <div className='absolute top-2 right-2 badge badge-error badge-xs'>!</div>
+                      )}
                       <div className='mb-2 flex h-32 items-center justify-center rounded bg-base-100'>
                         {opening === entry.id || isImporting ? (
                           <span className='loading loading-spinner'></span>
                         ) : (
-                          <span className='text-4xl opacity-50'>{formatIcons[entry.format] ?? '📖'}</span>
+                          <span className='text-4xl opacity-50'>
+                            {formatIcons[entry.format] ?? '📖'}
+                          </span>
                         )}
                       </div>
-                      <div className='truncate text-sm font-medium' title={entry.title}>{entry.title}</div>
+                      <div className='truncate text-sm font-medium' title={entry.title}>
+                        {entry.title}
+                      </div>
                       <div className='text-base-content/60 mt-1 flex items-center justify-between text-xs'>
                         <span>{entry.format}</span>
-                        <span>{cached ? _('Downloaded') : entry.size ? `${(entry.size / 1024 / 1024).toFixed(1)}MB` : ''}</span>
+                        <span>
+                          {cached
+                            ? _('Downloaded')
+                            : entry.size
+                              ? `${(entry.size / 1024 / 1024).toFixed(1)}MB`
+                              : ''}
+                        </span>
                       </div>
                     </div>
                   );
@@ -444,11 +540,23 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
           <div className='bg-base-100 rounded-box max-w-sm p-6 shadow-xl'>
             <h3 className='mb-2 text-lg font-semibold'>{_('Sync Conflict')}</h3>
             <p className='mb-4 text-sm text-base-content/70'>
-              {_('Both local and remote have changed for: {{title}}', { title: conflictInfo.bookTitle })}
+              {_('Both local and remote have changed for: {{title}}', {
+                title: conflictInfo.bookTitle,
+              })}
             </p>
             <div className='flex gap-2'>
-              <button className='btn btn-primary btn-sm flex-1' onClick={() => resolveConflict(true)}>{_('Keep Local')}</button>
-              <button className='btn btn-ghost btn-sm flex-1' onClick={() => resolveConflict(false)}>{_('Keep Remote')}</button>
+              <button
+                className='btn btn-primary btn-sm flex-1'
+                onClick={() => resolveConflict(true)}
+              >
+                {_('Keep Local')}
+              </button>
+              <button
+                className='btn btn-ghost btn-sm flex-1'
+                onClick={() => resolveConflict(false)}
+              >
+                {_('Keep Remote')}
+              </button>
             </div>
           </div>
         </div>

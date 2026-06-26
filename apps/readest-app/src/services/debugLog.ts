@@ -30,7 +30,9 @@ class DebugLog {
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (raw) this.entries = JSON.parse(raw) as LogEntry[];
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   private save() {
@@ -39,7 +41,9 @@ class DebugLog {
         this.entries = this.entries.slice(-MAX_ENTRIES);
       }
       localStorage.setItem(this.storageKey, JSON.stringify(this.entries));
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     this.listeners.forEach((fn) => fn());
   }
 
@@ -61,13 +65,14 @@ class DebugLog {
       level,
       tag,
       msg,
-      detail: detail instanceof Error
-        ? `${detail.message}\n${detail.stack ?? ''}`
-        : detail !== undefined
-          ? typeof detail === 'string'
-            ? detail
-            : JSON.stringify(detail, null, 2)
-          : undefined,
+      detail:
+        detail instanceof Error
+          ? `${detail.message}\n${detail.stack ?? ''}`
+          : detail !== undefined
+            ? typeof detail === 'string'
+              ? detail
+              : JSON.stringify(detail, null, 2)
+            : undefined,
     };
     this.entries.push(entry);
     console[level](`[${tag}] ${msg}`, detail ?? '');
@@ -94,7 +99,10 @@ class DebugLog {
   /** Export as formatted text for sharing. */
   exportText(): string {
     return this.entries
-      .map((e) => `${e.ts} [${e.level.toUpperCase()}] ${e.tag}: ${e.msg}${e.detail ? '\n' + e.detail : ''}`)
+      .map(
+        (e) =>
+          `${e.ts} [${e.level.toUpperCase()}] ${e.tag}: ${e.msg}${e.detail ? '\n' + e.detail : ''}`,
+      )
       .join('\n');
   }
 

@@ -1,6 +1,10 @@
 import type { BookFormat } from '@/types/book';
 import { SUPPORTED_BOOK_EXTS } from '@/services/constants';
-import { listDirectory, getFileBinary, type WebDAVConfig } from '@/services/webdav/WebDAVClient';
+import {
+  listDirectory,
+  getFileBinary,
+  type WebDAVConfig,
+} from '@/services/sync/providers/webdav/client';
 import type {
   BookSource,
   BookSourceCapabilities,
@@ -91,7 +95,7 @@ export class WebDAVSource implements BookSource {
   }
 
   async uploadBook(entry: BookSourceEntry, data: ArrayBuffer): Promise<void> {
-    const { putFileBinary } = await import('@/services/webdav/WebDAVClient');
+    const { putFileBinary } = await import('@/services/sync/providers/webdav/client');
     await putFileBinary(this.config, entry.path, data);
   }
 }

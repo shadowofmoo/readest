@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { debugLog } from '@/services/debugLog';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/store/settingsStore';
-import { putFileBinary } from '@/services/webdav/WebDAVClient';
+import { putFileBinary } from '@/services/sync/providers/webdav/client';
 
 interface DebugLogViewerProps {
   visible: boolean;
@@ -74,7 +74,11 @@ const DebugLogViewer: React.FC<DebugLogViewerProps> = ({ visible, onClose }) => 
               onClick={uploadToWebDAV}
               disabled={uploading}
             >
-              {uploading ? <span className='loading loading-spinner loading-xs'></span> : <>☁️ {_('Upload to WebDAV')}</>}
+              {uploading ? (
+                <span className='loading loading-spinner loading-xs'></span>
+              ) : (
+                <>☁️ {_('Upload to WebDAV')}</>
+              )}
             </button>
             <button className='btn btn-ghost btn-sm' onClick={downloadLog}>
               {_('Download')}
@@ -85,21 +89,36 @@ const DebugLogViewer: React.FC<DebugLogViewerProps> = ({ visible, onClose }) => 
             {_('Download')}
           </button>
         )}
-        <button className='btn btn-ghost btn-sm' onClick={() => { debugLog.clear(); }}>{_('Clear')}</button>
-        <button className='btn btn-ghost btn-sm' onClick={onClose}>✕</button>
+        <button
+          className='btn btn-ghost btn-sm'
+          onClick={() => {
+            debugLog.clear();
+          }}
+        >
+          {_('Clear')}
+        </button>
+        <button className='btn btn-ghost btn-sm' onClick={onClose}>
+          ✕
+        </button>
       </div>
       <div className='flex-grow overflow-y-auto p-2 font-mono text-xs leading-relaxed'>
         {entries.map((entry, i) => (
-          <div key={i} className={`py-0.5 border-b border-base-200 ${
-            entry.level === 'error' ? 'text-red-500'
-            : entry.level === 'warn' ? 'text-yellow-500'
-            : 'text-base-content/80'
-          }`}>
+          <div
+            key={i}
+            className={`py-0.5 border-b border-base-200 ${
+              entry.level === 'error'
+                ? 'text-red-500'
+                : entry.level === 'warn'
+                  ? 'text-yellow-500'
+                  : 'text-base-content/80'
+            }`}
+          >
             <span className='text-base-content/40'>{entry.ts.slice(11, 19)}</span>{' '}
-            <span className='font-semibold'>[{entry.tag}]</span>{' '}
-            {entry.msg}
+            <span className='font-semibold'>[{entry.tag}]</span> {entry.msg}
             {entry.detail && (
-              <div className='ml-4 text-base-content/50 whitespace-pre-wrap'>{entry.detail.slice(0, 500)}</div>
+              <div className='ml-4 text-base-content/50 whitespace-pre-wrap'>
+                {entry.detail.slice(0, 500)}
+              </div>
             )}
           </div>
         ))}

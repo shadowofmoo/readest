@@ -657,8 +657,8 @@ describe('services/constants', () => {
 
     it('has ttsHighlightOptions with style and color', () => {
       expect(typeof DEFAULT_TTS_CONFIG.ttsHighlightOptions).toBe('object');
-      expect(typeof DEFAULT_TTS_CONFIG.ttsHighlightOptions.style).toBe('string');
-      expect(typeof DEFAULT_TTS_CONFIG.ttsHighlightOptions.color).toBe('string');
+      expect(typeof DEFAULT_TTS_CONFIG.ttsHighlightOptions['style']).toBe('string');
+      expect(typeof DEFAULT_TTS_CONFIG.ttsHighlightOptions['color']).toBe('string');
     });
   });
 

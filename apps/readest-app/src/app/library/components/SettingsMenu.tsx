@@ -40,7 +40,11 @@ interface Permissions {
   manageStorage: PermissionState;
 }
 
-const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdownOpen, onShowDebugLog }) => {
+const SettingsMenu: React.FC<SettingsMenuProps> = ({
+  onPullLibrary,
+  setIsDropdownOpen,
+  onShowDebugLog,
+}) => {
   const _ = useTranslation();
   const { envConfig, appService } = useEnv();
   const { themeMode, setThemeMode } = useThemeStore();
@@ -343,10 +347,13 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
       </MenuItem>
       <hr aria-hidden='true' className='border-base-200 my-1' />
       {isWebAppPlatform() && <MenuItem label={_('Download Readest')} onClick={downloadReadest} />}
-      <MenuItem label={_('Debug Log')} onClick={() => {
-        onShowDebugLog?.();
-        setIsDropdownOpen?.(false);
-      }} />
+      <MenuItem
+        label={_('Debug Log')}
+        onClick={() => {
+          onShowDebugLog?.();
+          setIsDropdownOpen?.(false);
+        }}
+      />
       <MenuItem label={_('About Readest')} onClick={showAboutReadest} />
     </Menu>
   );
