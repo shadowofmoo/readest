@@ -1,6 +1,7 @@
 import { Book } from '@/types/book';
 import { EXTS } from '@/libs/document';
 import { makeSafeFilename } from '@/utils/misc';
+import { md5 } from 'js-md5';
 
 /**
  * Layout convention for the "Readest" subtree under the user's configured
@@ -13,7 +14,7 @@ import { makeSafeFilename } from '@/utils/misc';
  *     Readest/
  *       library.json                                 ← shared index
  *       progress/
- *         <safe-book-name>.json                      ← per-book reading progress
+ *         <md5-of-book-name>.json                     ← per-book reading progress
  *       books/
  *         <hash>/
  *           <safe-title>.<ext>                       ← the book file
@@ -97,10 +98,10 @@ export const buildBookCoverPath = (rootPath: string, bookHash: string): string =
 export const buildProgressDirPath = (rootPath: string): string =>
   join(buildBasePath(rootPath), SYNC_PROGRESS_DIR);
 
-/** Absolute path of a per-book progress file, keyed by sanitized book name. */
+/** Absolute path of a per-book progress file, keyed by MD5 of the book name. */
 export const buildProgressFilePath = (rootPath: string, book: Book): string => {
   const baseName = book.sourceTitle || book.title || book.hash;
-  return join(buildProgressDirPath(rootPath), `${makeSafeFilename(baseName)}.json`);
+  return join(buildProgressDirPath(rootPath), `${md5(baseName)}.json`);
 };
 
 /**
