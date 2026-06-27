@@ -13,8 +13,7 @@ import { md5 } from 'js-md5';
  *   <rootPath>/
  *     Readest/
  *       library.json                                 ← shared index
- *       progress/
- *         <md5-of-book-name>.json                     ← per-book reading progress
+ *       progress-<md5>.json                          ← per-book reading progress
  *       books/
  *         <hash>/
  *           <safe-title>.<ext>                       ← the book file
@@ -94,14 +93,10 @@ export const buildBookFilePath = (rootPath: string, book: Book): string =>
 export const buildBookCoverPath = (rootPath: string, bookHash: string): string =>
   join(buildBookDirPath(rootPath, bookHash), SYNC_BOOK_COVER_FILE);
 
-/** Absolute path of the progress directory. */
-export const buildProgressDirPath = (rootPath: string): string =>
-  join(buildBasePath(rootPath), SYNC_PROGRESS_DIR);
-
-/** Absolute path of a per-book progress file, keyed by MD5 of the book name. */
+/** Absolute path of a per-book progress file, flat under Readest/ to avoid subdir issues. */
 export const buildProgressFilePath = (rootPath: string, book: Book): string => {
   const baseName = book.sourceTitle || book.title || book.hash;
-  return join(buildProgressDirPath(rootPath), `${md5(baseName)}.json`);
+  return join(buildBasePath(rootPath), `progress-${md5(baseName)}.json`);
 };
 
 /**

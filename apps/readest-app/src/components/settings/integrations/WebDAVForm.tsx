@@ -211,7 +211,7 @@ const WebDAVForm: React.FC<WebDAVFormProps> = ({ onBack }) => {
       if (result.synced === 0 && result.failed > 0) {
         eventDispatcher.dispatch('toast', {
           type: 'error',
-          message: _('All failed — ensure Readest/progress/ directory exists on WebDAV server'),
+          message: _('All failed — check WebDAV write permissions'),
         });
       } else if (result.failed > 0) {
         eventDispatcher.dispatch('toast', {
@@ -258,7 +258,7 @@ const WebDAVForm: React.FC<WebDAVFormProps> = ({ onBack }) => {
           <BoxedList>
             <SettingsRow
               label={_('Reading Progress')}
-              description={_('Requires Readest/progress/ directory on server')}
+              description={_('Saved as progress-<name>.json under Readest/')}
             >
               <button
                 type='button'
