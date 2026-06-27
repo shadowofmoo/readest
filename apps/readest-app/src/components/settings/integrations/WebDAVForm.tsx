@@ -207,7 +207,12 @@ const WebDAVForm: React.FC<WebDAVFormProps> = ({ onBack }) => {
       });
 
       await persistWebdav({ lastSyncedAt: Date.now() });
-      if (result.failed > 0) {
+      if (result.synced === 0 && result.failed > 0) {
+        eventDispatcher.dispatch('toast', {
+          type: 'error',
+          message: _('All failed — ensure Readest/progress/ directory exists on WebDAV server'),
+        });
+      } else if (result.failed > 0) {
         eventDispatcher.dispatch('toast', {
           type: 'warning',
           message: _('Progress sync: {{ok}} ok, {{fail}} failed', {
@@ -252,13 +257,7 @@ const WebDAVForm: React.FC<WebDAVFormProps> = ({ onBack }) => {
           <BoxedList>
             <SettingsRow
               label={_('Reading Progress')}
-              description={
-                stored.lastSyncedAt
-                  ? _('Last synced {{when}}', {
-                      when: new Date(stored.lastSyncedAt).toLocaleString(),
-                    })
-                  : _('Never synced')
-              }
+              description={_('Requires Readest/progress/ directory on server')}
             >
               <button
                 type='button'

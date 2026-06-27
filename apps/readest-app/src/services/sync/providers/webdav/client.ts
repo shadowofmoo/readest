@@ -595,30 +595,15 @@ export const mkdir = async (config: WebDAVConfig, path: string): Promise<void> =
 };
 
 /**
- * Walk every ancestor of `path` and ensure it exists. Uses HEAD to skip
- * existing dirs, MKCOL to create new ones, and falls back to placeholder
- * PUT for servers that don't support MKCOL.
+ * Walk every ancestor of `path` and MKCOL it. Idempotent thanks to the
+ * 405-as-ok behaviour in `mkdir`. Use this before any PUT to a deep path.
+ *
+ * Imported lazily from WebDAVPaths via the caller — keeping this client
+ * file free of higher-level layout knowledge.
  */
 export const ensureDirectory = async (config: WebDAVConfig, ancestors: string[]): Promise<void> => {
   for (const dir of ancestors) {
-    const headRes = await requestWithMethod(config, dir, 'HEAD');
-    if (headRes.ok) continue;
-
-    const mkcolRes = await requestWithMethod(config, dir, 'MKCOL');
-    if (mkcolRes.status === 201) continue;
-
-    // Force directory creation via placeholder PUT on servers where
-    // MKCOL is disabled (405 for every path).
-    const placeholder = `${dir.replace(/\/+$/, '')}/.readest-dir`;
-    try {
-      await requestWithMethod(config, placeholder, 'PUT', {
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: '',
-      });
-    } catch {
-      // Can't create — subsequent writes will fail with 409
-    }
-    try { await requestWithMethod(config, placeholder, 'DELETE'); } catch { /* best-effort */ }
+    await mkdir(config, dir);
   }
 };
 
