@@ -445,15 +445,7 @@ const TransferHistory: React.FC = () => {
   const records = useWebDAVTransferStore((s) => s.records);
   const clearRecords = useWebDAVTransferStore((s) => s.clearRecords);
 
-  if (records.length === 0) {
-    return (
-      <BoxedList>
-        <div className='px-1 py-2 text-sm text-base-content/50'>
-          {_('No transfers yet — download or upload to see history')}
-        </div>
-      </BoxedList>
-    );
-  }
+  if (records.length === 0) return null;
 
   const recent = [...records].sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
 

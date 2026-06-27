@@ -480,7 +480,6 @@ const WebDAVBrowsePane: React.FC<WebDAVBrowsePaneProps> = ({ settings, onUpdateS
         type: 'download',
         timestamp: Date.now(),
       });
-      console.log('WD download recorded:', imported.title, useWebDAVTransferStore.getState().records.length);
       eventDispatcher.dispatch('toast', {
         type: 'info',
         message: _('Downloaded "{{title}}" to your library.', {
