@@ -21,10 +21,10 @@ const DebugLogViewer: React.FC<DebugLogViewerProps> = ({ visible, onClose }) => 
   const { appService } = useEnv();
   const { safeAreaInsets: insets, statusBarHeight, systemUIVisible } = useThemeStore();
   const safeTopPadding = appService?.hasSafeAreaInset
-    ? Math.max(insets.top, systemUIVisible ? statusBarHeight : 0)
+    ? Math.max(insets?.top ?? 0, systemUIVisible ? statusBarHeight : 0)
     : 0;
   const safeBottomPadding = appService?.hasSafeAreaInset
-    ? insets.bottom * 0.33
+    ? (insets?.bottom ?? 0) * 0.33
     : 0;
 
   useEffect(() => {
