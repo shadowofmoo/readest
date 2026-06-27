@@ -13,7 +13,6 @@ import { FileSyncError } from '@/services/sync/file/provider';
 import { createAppLocalStore } from '@/services/sync/file/appLocalStore';
 import { createWebDAVProvider } from '@/services/sync/providers/webdav/WebDAVProvider';
 import { removeBookNoteOverlays } from '../utils/annotatorUtil';
-import { useWindowActiveChanged } from './useWindowActiveChanged';
 
 /**
  * WebDAV per-book sync hook.
@@ -24,11 +23,10 @@ import { useWindowActiveChanged } from './useWindowActiveChanged';
  * debounced push on progress / booknote changes, manual flush on
  * `flush-webdav-sync` event.
  *
- * Energy budget — these constants are deliberately tuned for mobile:
- *   - Push debounce: 15 s. Real reading sessions involve continuous
- *     page-turns, so a longer window collapses many turns into one PUT.
- *   - Pull cooldown: 60 s. Window focus shouldn't trigger a fresh PROPFIND
- *     on every alt-tab; once a minute is plenty for cross-device drift.
+ * Energy budget:
+ *   - Push debounce: 15 s. No longer used for auto-push (sync is now
+ *     manual via the settings button), but kept for event-triggered flushes.
+ *   - Pull cooldown: removed. Window focus no longer triggers auto-pull.
  *   - Open-pull skip: 30 s. Quickly closing/reopening a book shouldn't
  *     re-fetch the same config that's already current in memory.
  *
@@ -48,8 +46,6 @@ import { useWindowActiveChanged } from './useWindowActiveChanged';
 
 /** Debounce window for auto-push triggered by progress / booknote churn. */
 const PUSH_DEBOUNCE_MS = 15_000;
-/** Minimum gap between automatic pulls (e.g. window-focus, open-book). */
-const PULL_COOLDOWN_MS = 60_000;
 /**
  * If this hook ran a successful pull less than this long ago for the
  * current book, skip the open-book pull entirely.
@@ -452,14 +448,14 @@ export const useWebDAVSync = (bookKey: string) => {
     })();
   }, [isReady, progress?.location]);
 
-  // Auto-push on progress changes. The debounce holds the network call
-  // off until the user has stopped turning pages for PUSH_DEBOUNCE_MS,
-  // and the dirty check inside debouncedPush short-circuits no-op flushes.
-  useEffect(() => {
-    if (!isReady) return;
-    if (!progress?.location) return;
-    markDirtyAndSchedule();
-  }, [isReady, progress?.location, markDirtyAndSchedule]);
+  // Auto-push on progress changes is DISABLED — reading progress sync is now
+  // manual via the "Sync Reading Progress" button in WebDAV settings.
+  // Keep pull-on-open to restore progress from another device, but never
+  // auto-push or auto-pull on focus/blur.
+
+  // Manual triggers: settings UI dispatches these via buttons,
+  // and the reader emits flush-webdav-sync on close so we don't lose the
+  // last few seconds of reading progress.
 
   // Booknote mutations: hash on length + max(updatedAt, deletedAt) so a
   // pure re-render that produces a fresh `booknotes` array reference
@@ -519,19 +515,7 @@ export const useWebDAVSync = (bookKey: string) => {
     };
   }, [bookKey, debouncedPush]);
 
-  // Window blur ⇒ push pending changes if any. Window focus ⇒ pull, but
-  // only if we haven't pulled within PULL_COOLDOWN_MS — important on
-  // mobile where alt-tab equivalents (notifications, app switch) can
-  // fire many times per minute.
-  useWindowActiveChanged((isActive) => {
-    if (!isReady) return;
-    if (isActive) {
-      if (Date.now() - lastPulledAtRef.current < PULL_COOLDOWN_MS) return;
-      syncRefs.current.pullNow();
-    } else if (dirtyRef.current) {
-      debouncedPush.flush();
-    }
-  });
+  // Window focus/blur auto-sync is DISABLED — now using manual sync button instead.
 
   // Flush any pending debounced push when the hook unmounts (book closed,
   // user navigated away). Without this, a quick read-then-close session

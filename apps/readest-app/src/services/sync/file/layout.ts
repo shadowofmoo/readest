@@ -12,6 +12,8 @@ import { makeSafeFilename } from '@/utils/misc';
  *   <rootPath>/
  *     Readest/
  *       library.json                                 ← shared index
+ *       progress/
+ *         <safe-book-name>.json                      ← per-book reading progress
  *       books/
  *         <hash>/
  *           <safe-title>.<ext>                       ← the book file
@@ -29,6 +31,7 @@ import { makeSafeFilename } from '@/utils/misc';
 
 export const SYNC_BASE_DIR = 'Readest';
 export const SYNC_BOOKS_DIR = 'books';
+export const SYNC_PROGRESS_DIR = 'progress';
 export const SYNC_LIBRARY_FILE = 'library.json';
 export const SYNC_BOOK_CONFIG_FILE = 'config.json';
 export const SYNC_BOOK_COVER_FILE = 'cover.png';
@@ -89,6 +92,16 @@ export const buildBookFilePath = (rootPath: string, book: Book): string =>
 /** Absolute path of the book cover image. */
 export const buildBookCoverPath = (rootPath: string, bookHash: string): string =>
   join(buildBookDirPath(rootPath, bookHash), SYNC_BOOK_COVER_FILE);
+
+/** Absolute path of the progress directory. */
+export const buildProgressDirPath = (rootPath: string): string =>
+  join(buildBasePath(rootPath), SYNC_PROGRESS_DIR);
+
+/** Absolute path of a per-book progress file, keyed by sanitized book name. */
+export const buildProgressFilePath = (rootPath: string, book: Book): string => {
+  const baseName = book.sourceTitle || book.title || book.hash;
+  return join(buildProgressDirPath(rootPath), `${makeSafeFilename(baseName)}.json`);
+};
 
 /**
  * Walk the parents of an absolute path, top-down, so callers can
