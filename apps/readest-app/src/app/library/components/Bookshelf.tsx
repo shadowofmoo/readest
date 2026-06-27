@@ -278,12 +278,14 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   }, [filteredBooks, groupBy, groupId, getGroupName]);
 
   useEffect(() => {
-    if (groupId && currentBookshelfItems.length === 0) {
+    // Don't kick the user out of a folder while they're searching —
+    // the empty result is from the search filter, not a deleted folder.
+    if (groupId && currentBookshelfItems.length === 0 && !queryTerm) {
       updateUrlParams({ group: null });
     } else {
       updateUrlParams({});
     }
-  }, [searchParams, groupId, currentBookshelfItems.length, updateUrlParams]);
+  }, [searchParams, groupId, currentBookshelfItems.length, updateUrlParams, queryTerm]);
 
   const sortedBookshelfItems = useMemo(() => {
     // Deduplicate by hash to avoid "same key" errors from duplicate downloads
@@ -786,6 +788,11 @@ const Bookshelf: React.FC<BookshelfProps> = ({
       className='bookshelf min-h-0 flex-grow focus:outline-none'
     >
       <div ref={osRootRef} data-overlayscrollbars-initialize='' className='h-full'>
+        {!hasItems && queryTerm && (
+          <div className='flex h-full items-center justify-center text-base-content/50'>
+            <p className='text-sm'>{_('No books matching "{{query}}"', { query: queryTerm })}</p>
+          </div>
+        )}
         {hasItems && isGridMode && (
           <VirtuosoGrid<unknown, BookshelfListContext>
             overscan={200}
