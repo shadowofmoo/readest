@@ -6,6 +6,7 @@ async function proxyToWebDAV(
   auth: string | null,
   body: string | null,
   depth: string | null,
+  contentType: string | null,
 ) {
   let parsedUrl: URL;
   try {
@@ -21,6 +22,7 @@ async function proxyToWebDAV(
   const headers: Record<string, string> = {};
   if (auth) headers['Authorization'] = auth;
   if (depth) headers['Depth'] = depth;
+  if (contentType) headers['Content-Type'] = contentType;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
@@ -75,8 +77,9 @@ export async function POST(request: NextRequest) {
   if (method === 'PROPFIND' || method === 'PUT') {
     body = await request.text();
   }
+  const contentType = method === 'PUT' ? request.headers.get('content-type') : null;
 
-  return proxyToWebDAV(url, method, auth, body, depth);
+  return proxyToWebDAV(url, method, auth, body, depth, contentType);
 }
 
 export async function OPTIONS() {
