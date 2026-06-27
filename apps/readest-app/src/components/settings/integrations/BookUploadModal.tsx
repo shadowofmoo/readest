@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useEnv } from '@/context/EnvContext';
@@ -27,8 +27,10 @@ const BookUploadModal: React.FC<BookUploadModalProps> = ({ isOpen, onClose, book
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
 
   const eligible = books.filter((b) => !b.deletedAt);
-  const uploadedHashes = useWebDAVTransferStore((s) =>
-    new Set(s.records.filter((r) => r.type === 'upload').map((r) => r.bookHash)),
+  const uploadRecords = useWebDAVTransferStore((s) => s.records);
+  const uploadedHashes = useMemo(
+    () => new Set(uploadRecords.filter((r) => r.type === 'upload').map((r) => r.bookHash)),
+    [uploadRecords],
   );
 
   const toggleSelect = useCallback(
