@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { useWebDAVSyncStore } from '@/store/webdavSyncStore';
+import { useWebDAVTransferStore } from '@/store/webdavTransferStore';
 import { eventDispatcher } from '@/utils/event';
 import {
   checkConnection,
@@ -295,6 +296,8 @@ const WebDAVForm: React.FC<WebDAVFormProps> = ({ onBack }) => {
             </SettingsRow>
           </BoxedList>
 
+          <TransferHistory />
+
           <WebDAVBrowsePane settings={stored} onUpdateSettings={persistWebdav} />
 
           <div className='flex justify-end'>
@@ -436,3 +439,44 @@ const WebDAVForm: React.FC<WebDAVFormProps> = ({ onBack }) => {
 };
 
 export default WebDAVForm;
+
+const TransferHistory: React.FC = () => {
+  const _ = useTranslation();
+  const records = useWebDAVTransferStore((s) => s.records);
+  const clearRecords = useWebDAVTransferStore((s) => s.clearRecords);
+
+  if (records.length === 0) return null;
+
+  const recent = [...records].sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
+
+  return (
+    <BoxedList>
+      <div className='flex items-center justify-between px-1'>
+        <span className='text-sm font-medium'>{_('Transfer History')}</span>
+        <button
+          type='button'
+          onClick={clearRecords}
+          className='btn btn-ghost btn-xs text-xs'
+        >
+          {_('Clear')}
+        </button>
+      </div>
+      <div className='max-h-40 overflow-y-auto'>
+        {recent.map((r) => (
+          <div
+            key={r.id}
+            className='flex items-center gap-2 px-3 py-1.5 text-sm'
+          >
+            <span className={r.type === 'download' ? 'text-info' : 'text-success'}>
+              {r.type === 'download' ? '↓' : '↑'}
+            </span>
+            <span className='min-w-0 truncate'>{r.bookTitle}</span>
+            <span className='ml-auto shrink-0 text-xs text-base-content/50'>
+              {new Date(r.timestamp).toLocaleTimeString()}
+            </span>
+          </div>
+        ))}
+      </div>
+    </BoxedList>
+  );
+};

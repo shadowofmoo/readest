@@ -5,6 +5,7 @@ import React, { useState, useCallback } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useEnv } from '@/context/EnvContext';
+import { useWebDAVTransferStore } from '@/store/webdavTransferStore';
 import { eventDispatcher } from '@/utils/event';
 import { FileSyncEngine } from '@/services/sync/file/engine';
 import { createAppLocalStore } from '@/services/sync/file/appLocalStore';
@@ -26,6 +27,9 @@ const BookUploadModal: React.FC<BookUploadModalProps> = ({ isOpen, onClose, book
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
 
   const eligible = books.filter((b) => !b.deletedAt);
+  const uploadedHashes = useWebDAVTransferStore((s) =>
+    new Set(s.records.filter((r) => r.type === 'upload').map((r) => r.bookHash)),
+  );
 
   const toggleSelect = useCallback(
     (hash: string) => {
@@ -71,6 +75,12 @@ const BookUploadModal: React.FC<BookUploadModalProps> = ({ isOpen, onClose, book
       try {
         await engine.pushBookFile(book);
         await engine.pushBookCover(book);
+        useWebDAVTransferStore.getState().addRecord({
+          bookHash: book.hash,
+          bookTitle: book.title || book.hash.slice(0, 8),
+          type: 'upload',
+          timestamp: Date.now(),
+        });
         ok++;
       } catch {
         fail++;
@@ -148,6 +158,9 @@ const BookUploadModal: React.FC<BookUploadModalProps> = ({ isOpen, onClose, book
                 <span className='min-w-0 truncate text-sm'>
                   {book.title || book.hash.slice(0, 8)}
                 </span>
+                {uploadedHashes.has(book.hash) && (
+                  <span className='badge badge-ghost badge-sm text-xs'>✓</span>
+                )}
               </label>
             ))
           )}

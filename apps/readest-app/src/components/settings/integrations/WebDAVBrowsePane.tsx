@@ -18,6 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useLibraryStore } from '@/store/libraryStore';
+import { useWebDAVTransferStore } from '@/store/webdavTransferStore';
 import { isTauriAppPlatform } from '@/services/environment';
 import { tauriDownload } from '@/utils/transfer';
 import { eventDispatcher } from '@/utils/event';
@@ -422,6 +423,20 @@ const WebDAVBrowsePane: React.FC<WebDAVBrowsePaneProps> = ({ settings, onUpdateS
     const appService = await envConfig.getAppService();
     if (!appService) return;
 
+    // Dedup check: if the parent is the books directory, the parent
+    // dir name is the book hash. Skip if already in local library.
+    const parentIsBooksDir =
+      currentPath === booksDirPath && entry.isDirectory;
+    if (parentIsBooksDir && bookByHash.has(entry.name)) {
+      eventDispatcher.dispatch('toast', {
+        type: 'info',
+        message: _('Already in library: {{title}}', {
+          title: bookByHash.get(entry.name)!.title || entry.name,
+        }),
+      });
+      return;
+    }
+
     setDownloadStatus((prev) => ({ ...prev, [entry.path]: 'downloading' }));
     try {
       // Cache filename is timestamped so concurrent downloads / re-taps
@@ -459,6 +474,12 @@ const WebDAVBrowsePane: React.FC<WebDAVBrowsePaneProps> = ({ settings, onUpdateS
       setLibrary(library);
 
       setDownloadStatus((prev) => ({ ...prev, [entry.path]: 'done' }));
+      useWebDAVTransferStore.getState().addRecord({
+        bookHash: imported.hash,
+        bookTitle: imported.title || entry.name,
+        type: 'download',
+        timestamp: Date.now(),
+      });
       eventDispatcher.dispatch('toast', {
         type: 'info',
         message: _('Downloaded "{{title}}" to your library.', {
