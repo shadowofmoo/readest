@@ -42,6 +42,10 @@ Default permissions for the plugin
 - `allow-get-sync-passphrase`
 - `allow-clear-sync-passphrase`
 - `allow-is-sync-keychain-available`
+- `allow-set-secure-item`
+- `allow-get-secure-item`
+- `allow-clear-secure-item`
+- `allow-refresh-eink-screen`
 
 ## Permission Table
 
@@ -204,6 +208,32 @@ Enables the clear_lookup_dictionary command without any pre-configured scope.
 <td>
 
 Denies the clear_lookup_dictionary command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:allow-clear-secure-item`
+
+</td>
+<td>
+
+Enables the clear_secure_item command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-clear-secure-item`
+
+</td>
+<td>
+
+Denies the clear_secure_item command without any pre-configured scope.
 
 </td>
 </tr>
@@ -386,6 +416,32 @@ Enables the get_screen_brightness command without any pre-configured scope.
 <td>
 
 Denies the get_screen_brightness command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:allow-get-secure-item`
+
+</td>
+<td>
+
+Enables the get_secure_item command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-get-secure-item`
+
+</td>
+<td>
+
+Denies the get_secure_item command without any pre-configured scope.
 
 </td>
 </tr>
@@ -783,6 +839,32 @@ Denies the open_external_url command without any pre-configured scope.
 <tr>
 <td>
 
+`native-bridge:allow-refresh-eink-screen`
+
+</td>
+<td>
+
+Enables the refresh_eink_screen command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-refresh-eink-screen`
+
+</td>
+<td>
+
+Denies the refresh_eink_screen command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `native-bridge:allow-register-listener`
 
 </td>
@@ -1010,6 +1092,32 @@ Enables the set_screen_brightness command without any pre-configured scope.
 <td>
 
 Denies the set_screen_brightness command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:allow-set-secure-item`
+
+</td>
+<td>
+
+Enables the set_secure_item command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-set-secure-item`
+
+</td>
+<td>
+
+Denies the set_secure_item command without any pre-configured scope.
 
 </td>
 </tr>

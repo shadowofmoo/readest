@@ -338,6 +338,16 @@ export class DocumentLoader {
     );
   }
 
+  private isMd(): boolean {
+    const name = this.file.name?.toLowerCase() ?? '';
+    return (
+      this.file.type === 'text/markdown' ||
+      this.file.type === 'text/x-markdown' ||
+      name.endsWith(`.${EXTS.MD}`) ||
+      name.endsWith('.markdown')
+    );
+  }
+
   public async open(): Promise<{ book: BookDoc; format: BookFormat }> {
     let book = null;
     let format: BookFormat = 'EPUB';
@@ -354,6 +364,13 @@ export class DocumentLoader {
       // conversion the import path runs) and parse that. The managed library
       // stores the already-converted EPUB, but the Android "Open with" transient
       // path points the book at the original .txt, so it reaches us unconverted.
+      // Markdown is rendered to HTML at runtime (no EPUB conversion). Check
+      // this BEFORE isTxt() — a .md served as text/plain would otherwise be
+      // grabbed by the TXT->EPUB path above.
+      if (this.isMd()) {
+        const { makeMarkdownBook } = await import('@/utils/md');
+        return { book: await makeMarkdownBook(this.file), format: 'MD' };
+      }
       if (this.isTxt()) {
         debugLog.log('Loader', `Opening TXT "${fileName}" (${fileSizeMB}MB)`);
         const tTxt = performance.now();
@@ -375,7 +392,10 @@ export class DocumentLoader {
           const native = await tryNativePrefetchEpub(this.nativeFilePath);
           if (native) {
             prefetch = { textCache: native.textCache, sizes: native.sizes };
-            debugLog.log('Loader', `Native EPUB prefetch OK in ${(performance.now() - tPrefetch).toFixed(0)}ms`);
+            debugLog.log(
+              'Loader',
+              `Native EPUB prefetch OK in ${(performance.now() - tPrefetch).toFixed(0)}ms`,
+            );
           }
         }
         detectedPhase = 'makeZipLoader';
@@ -390,7 +410,10 @@ export class DocumentLoader {
           const { makeComicBook } = await import('foliate-js/comic-book.js');
           book = await makeComicBook(loader, this.file);
           format = 'CBZ';
-          debugLog.log('Loader', `CBZ "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
+          debugLog.log(
+            'Loader',
+            `CBZ "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`,
+          );
         } else if (this.isFBZ()) {
           detectedPhase = 'FBZ parse';
           const tParse = performance.now();
@@ -399,14 +422,20 @@ export class DocumentLoader {
           const { makeFB2 } = await import('foliate-js/fb2.js');
           book = await makeFB2(blob);
           format = 'FBZ';
-          debugLog.log('Loader', `FBZ "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
+          debugLog.log(
+            'Loader',
+            `FBZ "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`,
+          );
         } else {
           detectedPhase = 'EPUB init';
           const tParse = performance.now();
           const { EPUB } = await import('foliate-js/epub.js');
           book = await new EPUB(loader).init();
           format = 'EPUB';
-          debugLog.log('Loader', `EPUB "${fileName}" (${fileSizeMB}MB) parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
+          debugLog.log(
+            'Loader',
+            `EPUB "${fileName}" (${fileSizeMB}MB) parsed in ${(performance.now() - tParse).toFixed(0)}ms`,
+          );
         }
       } else if (await this.isPDF()) {
         detectedPhase = 'PDF parse';
@@ -415,7 +444,10 @@ export class DocumentLoader {
         const { makePDF } = await import('foliate-js/pdf.js');
         book = await makePDF(this.file);
         format = 'PDF';
-        debugLog.log('Loader', `PDF "${fileName}" (${fileSizeMB}MB) parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
+        debugLog.log(
+          'Loader',
+          `PDF "${fileName}" (${fileSizeMB}MB) parsed in ${(performance.now() - tParse).toFixed(0)}ms`,
+        );
       } else if (await (await import('foliate-js/mobi.js')).isMOBI(this.file)) {
         detectedPhase = 'MOBI parse';
         const tParse = performance.now();
@@ -434,7 +466,10 @@ export class DocumentLoader {
           default:
             format = 'MOBI';
         }
-        debugLog.log('Loader', `${format} "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
+        debugLog.log(
+          'Loader',
+          `${format} "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`,
+        );
       } else if (this.isFB2()) {
         detectedPhase = 'FB2 parse';
         const tParse = performance.now();
@@ -442,7 +477,10 @@ export class DocumentLoader {
         const { makeFB2 } = await import('foliate-js/fb2.js');
         book = await makeFB2(this.file);
         format = 'FB2';
-        debugLog.log('Loader', `FB2 "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`);
+        debugLog.log(
+          'Loader',
+          `FB2 "${fileName}" parsed in ${(performance.now() - tParse).toFixed(0)}ms`,
+        );
       }
       const totalElapsed = (performance.now() - t0).toFixed(0);
       debugLog.log('Loader', `${format} "${fileName}" total open time: ${totalElapsed}ms`);

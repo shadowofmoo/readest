@@ -189,7 +189,14 @@ class NativeBridgePlugin(private val activity: Activity): Plugin(activity) {
         // OAuth callback uses a custom scheme on intent.data and is handled
         // separately from any user-shared content.
         intent.data?.let { uri ->
-            if (uri.scheme == "readest" && uri.host == "auth-callback") {
+            val scheme = uri.scheme ?: ""
+            val isReadestAuth = scheme == "readest" && uri.host == "auth-callback"
+            // Google Drive sign-in uses the reverse-DNS "iOS URL scheme"
+            // (com.googleusercontent.apps.<id>:/oauthredirect) registered as a
+            // BROWSABLE deep link; resolve it through the same pending invoke as
+            // the Supabase readest://auth-callback flow.
+            val isGoogleOAuth = scheme.startsWith("com.googleusercontent.apps.")
+            if (isReadestAuth || isGoogleOAuth) {
                 val result = JSObject().apply {
                     put("redirectUrl", uri.toString())
                 }
@@ -1133,6 +1140,71 @@ class NativeBridgePlugin(private val activity: Activity): Plugin(activity) {
         invoke.resolve(ret)
     }
 
+    // ── Keyed secure key-value store ──────────────────────────────────
+    // Same EncryptedSharedPreferences backing as the sync passphrase, but
+    // a generic keyed store (one prefs file, the caller's `key` as the
+    // entry key) so secrets like the Google Drive token set persist the
+    // same way without each needing its own command.
+
+    private val secureItemsPrefsName = "readest_secure_items_v1"
+
+    private fun openSecureItemsPrefs(): android.content.SharedPreferences {
+        val masterKey = androidx.security.crypto.MasterKey.Builder(activity)
+            .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return androidx.security.crypto.EncryptedSharedPreferences.create(
+            activity,
+            secureItemsPrefsName,
+            masterKey,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
+
+    @Command
+    fun set_secure_item(invoke: Invoke) {
+        val args = invoke.parseArgs(SecureItemSetArgs::class.java)
+        val ret = JSObject()
+        try {
+            openSecureItemsPrefs().edit().putString(args.key, args.value).apply()
+            ret.put("success", true)
+        } catch (e: Exception) {
+            Log.e("NativeBridgePlugin", "set_secure_item failed", e)
+            ret.put("success", false)
+            ret.put("error", e.message ?: "unknown")
+        }
+        invoke.resolve(ret)
+    }
+
+    @Command
+    fun get_secure_item(invoke: Invoke) {
+        val args = invoke.parseArgs(SecureItemGetArgs::class.java)
+        val ret = JSObject()
+        try {
+            val value = openSecureItemsPrefs().getString(args.key, null)
+            if (value != null) ret.put("value", value)
+        } catch (e: Exception) {
+            Log.e("NativeBridgePlugin", "get_secure_item failed", e)
+            ret.put("error", e.message ?: "unknown")
+        }
+        invoke.resolve(ret)
+    }
+
+    @Command
+    fun clear_secure_item(invoke: Invoke) {
+        val args = invoke.parseArgs(SecureItemGetArgs::class.java)
+        val ret = JSObject()
+        try {
+            openSecureItemsPrefs().edit().remove(args.key).apply()
+            ret.put("success", true)
+        } catch (e: Exception) {
+            Log.e("NativeBridgePlugin", "clear_secure_item failed", e)
+            ret.put("success", false)
+            ret.put("error", e.message ?: "unknown")
+        }
+        invoke.resolve(ret)
+    }
+
     /**
      * Hand a selected word off to whatever dictionary / lookup app the
      * user has installed, via the standard `ACTION_PROCESS_TEXT`
@@ -1353,9 +1425,44 @@ class NativeBridgePlugin(private val activity: Activity): Plugin(activity) {
         }
         controller.show()
     }
+
+    /**
+     * Trigger a deep e-ink full screen refresh (GC16 waveform) to clear
+     * ghosting. Driven by the page-turner "Refresh Page" action on e-ink
+     * Android devices. Runs on the UI thread against the window's decor view;
+     * [EinkRefreshController] probes each vendor mechanism and resolves
+     * `success: false` (not an error) when none is available.
+     */
+    @Command
+    fun refresh_eink_screen(invoke: Invoke) {
+        activity.runOnUiThread {
+            val ret = JSObject()
+            try {
+                val view = activity.window?.decorView
+                val ok = view != null && EinkRefreshController.refresh(view)
+                ret.put("success", ok)
+            } catch (e: Exception) {
+                Log.e("NativeBridgePlugin", "refresh_eink_screen failed", e)
+                ret.put("success", false)
+                ret.put("error", e.message ?: "unknown")
+            }
+            invoke.resolve(ret)
+        }
+    }
 }
 
 @app.tauri.annotation.InvokeArg
 class SyncPassphraseSetArgs {
     lateinit var passphrase: String
+}
+
+@app.tauri.annotation.InvokeArg
+class SecureItemSetArgs {
+    lateinit var key: String
+    lateinit var value: String
+}
+
+@app.tauri.annotation.InvokeArg
+class SecureItemGetArgs {
+    lateinit var key: String
 }

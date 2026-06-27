@@ -30,6 +30,10 @@ func getLocalizedDisplayName(familyName: String) -> String? {
 
 class SafariAuthRequestArgs: Decodable {
   let authUrl: String
+  // ASWebAuthenticationSession callback scheme. Defaults to "readest" (the
+  // Supabase login); the Google Drive flow passes its reverse-DNS scheme so the
+  // session intercepts that redirect instead.
+  let callbackScheme: String?
 }
 
 class UseBackgroundAudioRequestArgs: Decodable {
@@ -770,8 +774,9 @@ class NativeBridgePlugin: Plugin {
   @objc public func auth_with_safari(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(SafariAuthRequestArgs.self)
     let authUrl = URL(string: args.authUrl)!
+    let callbackScheme = args.callbackScheme ?? "readest"
 
-    authSession = ASWebAuthenticationSession(url: authUrl, callbackURLScheme: "readest") {
+    authSession = ASWebAuthenticationSession(url: authUrl, callbackURLScheme: callbackScheme) {
       [weak self] callbackURL, error in
       guard let strongSelf = self else { return }
 
@@ -1234,6 +1239,79 @@ class NativeBridgePlugin: Plugin {
     }
   }
 
+  // ── Keyed secure key-value store ──────────────────────────────────
+  // Same Keychain backing as the sync passphrase, but a generic keyed
+  // store: one service, the caller's `key` as the account, so secrets
+  // like the Google Drive token set persist the same way.
+
+  private static let secureItemsService = "com.bilingify.readest.secure-items"
+
+  private func secureItemBaseQuery(_ key: String) -> [String: Any] {
+    return [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: NativeBridgePlugin.secureItemsService,
+      kSecAttrAccount as String: key
+    ]
+  }
+
+  @objc public func set_secure_item(_ invoke: Invoke) {
+    do {
+      let args = try invoke.parseArgs(SecureItemSetArgs.self)
+      guard let data = args.value.data(using: .utf8) else {
+        invoke.resolve(["success": false, "error": "encoding"])
+        return
+      }
+      var query = secureItemBaseQuery(args.key)
+      query[kSecValueData as String] = data
+      // Replace any existing entry. Delete-then-add keeps the
+      // accessibility class consistent across SDK versions.
+      SecItemDelete(query as CFDictionary)
+      let status = SecItemAdd(query as CFDictionary, nil)
+      if status == errSecSuccess {
+        invoke.resolve(["success": true])
+      } else {
+        invoke.resolve(["success": false, "error": "OSStatus \(status)"])
+      }
+    } catch {
+      invoke.resolve(["success": false, "error": "\(error)"])
+    }
+  }
+
+  @objc public func get_secure_item(_ invoke: Invoke) {
+    do {
+      let args = try invoke.parseArgs(SecureItemGetArgs.self)
+      var query = secureItemBaseQuery(args.key)
+      query[kSecReturnData as String] = true
+      query[kSecMatchLimit as String] = kSecMatchLimitOne
+      var item: CFTypeRef?
+      let status = SecItemCopyMatching(query as CFDictionary, &item)
+      if status == errSecSuccess, let data = item as? Data, let s = String(data: data, encoding: .utf8) {
+        invoke.resolve(["value": s])
+      } else if status == errSecItemNotFound {
+        // No entry: empty response. The TS layer treats this as "not stored".
+        invoke.resolve([:])
+      } else {
+        invoke.resolve(["error": "OSStatus \(status)"])
+      }
+    } catch {
+      invoke.resolve(["error": "\(error)"])
+    }
+  }
+
+  @objc public func clear_secure_item(_ invoke: Invoke) {
+    do {
+      let args = try invoke.parseArgs(SecureItemGetArgs.self)
+      let status = SecItemDelete(secureItemBaseQuery(args.key) as CFDictionary)
+      if status == errSecSuccess || status == errSecItemNotFound {
+        invoke.resolve(["success": true])
+      } else {
+        invoke.resolve(["success": false, "error": "OSStatus \(status)"])
+      }
+    } catch {
+      invoke.resolve(["success": false, "error": "\(error)"])
+    }
+  }
+
   @objc public func show_lookup_popover(_ invoke: Invoke) {
     // Bridge for the system-dictionary "Look Up" surface on iOS.
     // We use `UIReferenceLibraryViewController`, which is the same
@@ -1416,6 +1494,13 @@ class NativeBridgePlugin: Plugin {
 
       presenter.present(picker, animated: true)
     }
+  }
+
+  // iOS devices have no e-ink panel; the "Refresh Page" page-turner action is
+  // gated to e-ink Android in the UI, so this is only ever reached defensively.
+  // Resolve as a soft no-op rather than rejecting.
+  @objc public func refresh_eink_screen(_ invoke: Invoke) {
+    invoke.resolve(["success": false])
   }
 }
 
@@ -1631,6 +1716,15 @@ private func topmostViewController() -> UIViewController? {
 
 class SyncPassphraseSetArgs: Decodable {
   let passphrase: String
+}
+
+class SecureItemSetArgs: Decodable {
+  let key: String
+  let value: String
+}
+
+class SecureItemGetArgs: Decodable {
+  let key: String
 }
 
 class ShowLookupPopoverArgs: Decodable {
