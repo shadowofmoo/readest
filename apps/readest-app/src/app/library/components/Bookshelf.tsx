@@ -137,6 +137,25 @@ const LIST_VIRTUOSO_COMPONENTS: Components = {
   Footer: () => <div style={{ height: 34 }} />,
 };
 
+const deduplicateBookshelfItems = (items: (Book | BooksGroup)[]): (Book | BooksGroup)[] => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if ('books' in item) {
+      // Deduplicate books within groups too
+      const deduped = item.books.filter((b) => {
+        if (seen.has(b.hash)) return false;
+        seen.add(b.hash);
+        return true;
+      });
+      item.books = deduped;
+      return deduped.length > 0;
+    }
+    if (seen.has(item.hash)) return false;
+    seen.add(item.hash);
+    return true;
+  });
+};
+
 const Bookshelf: React.FC<BookshelfProps> = ({
   libraryBooks,
   isSelectMode,
@@ -267,11 +286,14 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   }, [searchParams, groupId, currentBookshelfItems.length, updateUrlParams]);
 
   const sortedBookshelfItems = useMemo(() => {
+    // Deduplicate by hash to avoid "same key" errors from duplicate downloads
+    const deduped = deduplicateBookshelfItems(currentBookshelfItems);
+
     const sortOrderMultiplier = sortOrder === 'asc' ? 1 : -1;
 
     // Separate into ungrouped books and groups
-    const ungroupedBooks = currentBookshelfItems.filter((item): item is Book => 'format' in item);
-    const groups = currentBookshelfItems.filter((item): item is BooksGroup => 'books' in item);
+    const ungroupedBooks = deduped.filter((item): item is Book => 'format' in item);
+    const groups = deduped.filter((item): item is BooksGroup => 'books' in item);
 
     // Sort books within each group
     // For series groups, series index is always ascending; sort direction applies to fallback only
