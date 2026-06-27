@@ -790,7 +790,13 @@ const Bookshelf: React.FC<BookshelfProps> = ({
       <div ref={osRootRef} data-overlayscrollbars-initialize='' className='h-full'>
         {!hasItems && queryTerm && (
           <div className='flex h-full items-center justify-center text-base-content/50'>
-            <p className='text-sm'>{_('No books matching "{{query}}"', { query: queryTerm })}</p>
+            <div className='text-center'>
+              <p className='text-sm'>
+                {groupId
+                  ? _('No books matching "{{query}}" in this folder', { query: queryTerm })
+                  : _('No books matching "{{query}}"', { query: queryTerm })}
+              </p>
+            </div>
           </div>
         )}
         {hasItems && isGridMode && (
