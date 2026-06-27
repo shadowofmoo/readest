@@ -16,9 +16,11 @@ docker compose -f docker-compose.android.yml up --build
 docker compose -f docker-compose.android.yml up
 ```
 
-APK 输出位置: `apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+APK 输出位置: `apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`
 
 AAB 输出位置: `apps/readest-app/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`
+
+> Docker 构建已内置自动签名，输出为签名后的 APK，可直接安装。
 
 ### 构建 Debug APK（测试用）
 
@@ -40,35 +42,40 @@ cd apps/readest-app && pnpm tauri android build -t aarch64'
 
 ## 签名配置
 
-### 本地构建（未签名 APK）
+### 自动签名（Docker 构建默认）
 
-默认构建输出 `-unsigned.apk`，可通过以下方式签名。
+Dockerfile 已在 `tauri android init` 之后自动生成 `keystore.properties`，构建时 Gradle 自动读取并签名，输出为已签名 APK。
 
 ### 签名文件
 
 - Keystore: `apps/readest-app/src-tauri/readest.keystore`
-- 签名密码: `readest123`
+- 签名密码: `123456`
 - 签名别名: `readest`
 
-### 构建签名 APK
+### 手动签名（本地无 Docker 构建时）
 
 ```bash
-docker compose -f docker-compose.android.yml run --rm android-builder bash -c '
 cd apps/readest-app &&
-echo "keyAlias=readest
-password=readest123
-storeFile=../../../readest.keystore" > src-tauri/gen/android/keystore.properties &&
-pnpm tauri android build -t aarch64'
+echo 'keyAlias=readest
+password=123456
+storeFile=../../../readest.keystore' > src-tauri/gen/android/keystore.properties &&
+pnpm tauri android build -t aarch64
 ```
-
-签名后 APK: `app-universal-release.apk`
 
 ### 如何生成新的 Keystore
 
 ```bash
+# 方式 1: keytool (需要 JDK)
 keytool -genkey -v -keystore readest.keystore -alias readest -keyalg RSA \
-  -keysize 2048 -validity 10000 -storepass <密码> -keypass <密码> \
-  -dname "CN=Readest, OU=Dev, O=Readest, L=Beijing, ST=Beijing, C=CN"
+  -keysize 2048 -validity 36500 -storepass 123456 -keypass 123456 \
+  -dname "CN=Readest, OU=Personal, O=Readest, C=US"
+
+# 方式 2: openssl (无需 JDK)
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem \
+  -days 36500 -nodes -subj "/CN=Readest/O=Personal/C=US"
+openssl pkcs12 -export -out readest.keystore -inkey key.pem -in cert.pem \
+  -passout pass:123456 -name readest
+rm key.pem cert.pem
 ```
 
 ### 签名配置文件格式
@@ -76,21 +83,12 @@ keytool -genkey -v -keystore readest.keystore -alias readest -keyalg RSA \
 在 `src-tauri/gen/android/keystore.properties` 中配置：
 
 ```properties
-keyAlias=<别名>
-password=<密码>
+keyAlias=readest
+password=123456
 storeFile=../../../readest.keystore
 ```
 
-> `storeFile` 是相对于 `gen/android/` 目录的相对路径。
-
-### 环境变量方式（可选）
-
-```bash
-export ANDROID_SIGNING_KEYSTORE_PATH=src-tauri/readest.keystore
-export ANDROID_SIGNING_KEYSTORE_PASSWORD=readest123
-export ANDROID_SIGNING_KEY_ALIAS=readest
-export ANDROID_SIGNING_KEY_PASSWORD=readest123
-```
+> `storeFile` 是相对于 `gen/android/app/`（`build.gradle.kts` 所在 project 目录）的相对路径。
 
 ## Docker 环境说明
 
@@ -117,11 +115,12 @@ export ANDROID_SIGNING_KEY_PASSWORD=readest123
 ### Docker 镜像层结构
 
 ```
-Layer 1: pnpm install          ← 仅依赖文件变更时重建
-Layer 2: COPY . .              ← 任何源码变更会触发此层及之后
-Layer 3: tauri android init    ← 生成 Android Gradle 项目
-Layer 4: setup-vendors         ← 复制 vendor 静态资源
-CMD:     tauri android build   ← 编译 Rust + Next.js + 打包 APK
+Layer 1: pnpm install            ← 仅依赖文件变更时重建
+Layer 2: COPY . .                ← 任何源码变更会触发此层及之后
+Layer 3: tauri android init      ← 生成 Android Gradle 项目
+Layer 4: keystore.properties     ← 注入签名配置（密码内嵌于 Dockerfile）
+Layer 5: setup-vendors           ← 复制 vendor 静态资源
+CMD:     tauri android build     ← 编译 Rust + Next.js + 打包签名 APK
 ```
 
 ### 清理缓存
