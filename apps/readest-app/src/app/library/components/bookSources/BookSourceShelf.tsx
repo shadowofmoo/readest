@@ -176,6 +176,7 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
               type: 'download',
               timestamp: Date.now(),
             });
+            console.log('BS download recorded:', book.title, useWebDAVTransferStore.getState().records.length);
           }
           setLibrary([...library, book]);
           navigateToReader(router, [book.hash]);
