@@ -5,6 +5,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useEnv } from '@/context/EnvContext';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useLibraryStore } from '@/store/libraryStore';
+import { useWebDAVTransferStore } from '@/store/webdavTransferStore';
 import type { BookSource, BookSourceEntry, BookSourceDirectory } from '@/services/bookSources';
 import { ingestFile } from '@/services/ingestService';
 import { buildBookLookupIndex } from '@/services/bookService';
@@ -168,6 +169,14 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         );
 
         if (book) {
+          if (source.type === 'webdav') {
+            useWebDAVTransferStore.getState().addRecord({
+              bookHash: book.hash,
+              bookTitle: book.title || entry.title,
+              type: 'download',
+              timestamp: Date.now(),
+            });
+          }
           setLibrary([...library, book]);
           navigateToReader(router, [book.hash]);
         }
@@ -199,10 +208,18 @@ const BookSourceShelf: React.FC<BookSourceShelfProps> = ({ source, onBack }) => 
         const ext = entry.format.toLowerCase();
         const file = new File([data], `${entry.title}.${ext}`);
         const lookupIndex = buildBookLookupIndex(library);
-        await ingestFile(
+        const book = await ingestFile(
           { file, books: library, lookupIndex },
           { appService, settings, isLoggedIn: false },
         );
+        if (book && source.type === 'webdav') {
+          useWebDAVTransferStore.getState().addRecord({
+            bookHash: book.hash,
+            bookTitle: book.title || entry.title,
+            type: 'download',
+            timestamp: Date.now(),
+          });
+        }
         setImporting((prev) => {
           const n = new Set(prev);
           n.delete(entry.id);
