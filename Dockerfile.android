@@ -57,7 +57,7 @@ COPY . .
 RUN cd apps/readest-app && pnpm tauri android init
 
 # Add keystore signing config (personal project, non-sensitive credentials)
-RUN printf 'keyAlias=readest\npassword=123456\nstoreFile=../../readest.keystore\n' \
+RUN printf 'keyAlias=readest\npassword=123456\nstoreFile=../../../readest.keystore\n' \
     > apps/readest-app/src-tauri/gen/android/keystore.properties
 
 # Add missing color resource that init doesn't generate
