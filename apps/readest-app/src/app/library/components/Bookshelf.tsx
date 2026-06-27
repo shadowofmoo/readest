@@ -249,32 +249,26 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   }, [libraryBooks, queryTerm]);
 
   const currentBookshelfItems = useMemo(() => {
+    let items: (Book | BooksGroup)[];
     if (groupBy === LibraryGroupByType.Group) {
-      // Use existing generateBookshelfItems for group mode
       const groupName = getGroupName(groupId) || '';
       if (groupId && !groupName) {
         return [];
       }
-      return generateBookshelfItems(filteredBooks, groupName);
+      items = generateBookshelfItems(filteredBooks, groupName);
     } else {
-      // Use new createBookGroups for series/author/none modes
       const allItems = createBookGroups(filteredBooks, groupBy);
-
-      // If navigating into a specific group, show only that group's books
       if (groupId) {
         const targetGroup = allItems.find(
           (item): item is BooksGroup => 'books' in item && item.id === groupId,
         );
-        if (targetGroup) {
-          // Return the books from the target group as individual items
-          return targetGroup.books;
-        }
-        // Group not found, return empty
-        return [];
+        items = targetGroup ? targetGroup.books : [];
+      } else {
+        items = allItems;
       }
-
-      return allItems;
     }
+    // Remove groups with no matching books after search filtering
+    return items.filter((item) => !('books' in item) || item.books.length > 0);
   }, [filteredBooks, groupBy, groupId, getGroupName]);
 
   useEffect(() => {
