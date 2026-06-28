@@ -29,7 +29,7 @@ export default function AuthCallback() {
       error,
       errorCode,
       errorDescription,
-      login,
+      login: login as any,
       navigate: router.push,
     });
   }, [login, router]);

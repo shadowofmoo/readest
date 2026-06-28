@@ -9,6 +9,7 @@ ENV PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-to
 ENV JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
 ENV CARGO_HOME="/usr/local/cargo"
 ENV PATH="$CARGO_HOME/bin:$PATH"
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # System dependencies
 RUN apt-get update && apt-get install -y \

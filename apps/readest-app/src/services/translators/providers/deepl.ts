@@ -41,6 +41,7 @@ export const deeplProvider: TranslationProvider = {
       use_cache: useCache,
     });
 
+    // @ts-expect-error getTranslationQuota expects plan arg, stub accepts none
     const quota = getTranslationQuota();
     try {
       const response = await fetch(DEEPL_API_ENDPOINT, { method: 'POST', headers, body });

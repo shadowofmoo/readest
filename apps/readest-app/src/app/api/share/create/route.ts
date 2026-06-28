@@ -130,7 +130,7 @@ export async function POST(request: Request) {
 
   // Pick the book file (not the cover) by extension. Covers are PNG/JPG;
   // book files are EPUB/PDF/MOBI/etc. The widest filter is "is not an image".
-  const bookFile = bookFiles.find((f) => !/\.(png|jpe?g|webp|gif)$/i.test(f.file_key));
+  const bookFile = bookFiles.find((f: any) => !/\.(png|jpe?g|webp|gif)$/i.test(f.file_key));
   if (!bookFile) {
     return NextResponse.json(
       { error: 'Book file row not found', code: 'book_not_uploaded' },

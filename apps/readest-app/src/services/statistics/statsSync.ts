@@ -50,6 +50,7 @@ export async function pushStats(stats: StatisticsDb, client: PushClient): Promis
       const b = bookByHash.get(e.bookMd5);
       if (b) chunkBooks.push(toWireBook(b));
     }
+    // @ts-expect-error SyncClient stub has 0 args, real impl expects payload
     await client.pushChanges({ statBooks: chunkBooks, statPages: chunk.map(toWirePage) });
     await stats.setCursor('push', chunk[chunk.length - 1]!.startTime);
     i = end;
@@ -66,6 +67,7 @@ export async function pushStats(stats: StatisticsDb, client: PushClient): Promis
 export async function pullStats(stats: StatisticsDb, client: PullClient): Promise<void> {
   for (;;) {
     const since = await stats.getCursor('pull');
+    // @ts-expect-error SyncClient stub has 0 args, real impl expects 5
     const res = await client.pullChanges(since, 'stats', undefined, undefined, PULL_PAGE);
     const wireBooks = (res.statBooks ?? []) as StatBookRecord[];
     const wirePages = (res.statPages ?? []) as StatPageRecord[];

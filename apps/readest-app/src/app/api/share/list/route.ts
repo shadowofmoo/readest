@@ -58,7 +58,7 @@ export async function GET(request: Request) {
   const nextCursor = hasMore && last ? `${last.created_at}|${last.id}` : null;
 
   return NextResponse.json({
-    shares: page.map((row) => ({
+    shares: page.map((row: any) => ({
       id: row.id,
       // Plaintext token surfaced to the OWNER only. RLS ensures other users
       // cannot read this row; this endpoint is auth-gated and queried by

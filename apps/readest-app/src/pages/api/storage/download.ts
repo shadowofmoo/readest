@@ -87,7 +87,9 @@ async function processFileKeys(
     return Object.fromEntries(fileKeys.map((key) => [key, undefined]));
   }
 
-  const fileRecordMap = new Map((fileRecords || []).map((record) => [record.file_key, record]));
+  const fileRecordMap = new Map(
+    (fileRecords || []).map((record: any) => [record.file_key, record]),
+  );
 
   const missingFileKeys = fileKeys.filter((key) => !fileRecordMap.has(key));
 
@@ -119,7 +121,7 @@ async function processFileKeys(
       if (!fallbackError && fallbackRecords) {
         for (const candidate of fallbackCandidates) {
           const matchedFile = fallbackRecords.find(
-            (f) =>
+            (f: any) =>
               f.book_hash === candidate.bookHash &&
               f.file_key.endsWith(`.${candidate.fileExtension}`),
           );
@@ -139,12 +141,12 @@ async function processFileKeys(
         return { fileKey, downloadUrl: undefined };
       }
 
-      if (fileRecord.user_id !== userId) {
+      if ((fileRecord as any).user_id !== userId) {
         return { fileKey, downloadUrl: undefined };
       }
 
       try {
-        const downloadUrl = await getDownloadSignedUrl(fileRecord.file_key, 1800);
+        const downloadUrl = await getDownloadSignedUrl((fileRecord as any).file_key, 1800);
         return { fileKey, downloadUrl };
       } catch (error) {
         console.error('Error creating signed URL for %s:', fileKey, error);

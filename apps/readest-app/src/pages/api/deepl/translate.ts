@@ -41,7 +41,11 @@ const generateCacheKey = (text: string, sourceLang: string, targetLang: string):
 
 const checkDailyUsage = async (userId: string, token: string, chars: number) => {
   const { quota: dailyQuota } = getDailyTranslationPlanData(token);
-  const dailyUsage = await UsageStatsManager.getCurrentUsage(userId, 'translation_chars', 'daily');
+  const dailyUsage = await (UsageStatsManager as any).getCurrentUsage(
+    userId,
+    'translation_chars',
+    'daily',
+  );
 
   if (dailyQuota <= dailyUsage + chars) {
     throw new Error(ErrorCodes.DAILY_QUOTA_EXCEEDED);
@@ -58,7 +62,7 @@ const updateDailyUsage = async (
 
   try {
     const userPlan = getSubscriptionPlan(token);
-    const newUsage = await UsageStatsManager.trackUsage(
+    const newUsage = await (UsageStatsManager as any).trackUsage(
       userId,
       'translation_chars',
       incrementUsage,

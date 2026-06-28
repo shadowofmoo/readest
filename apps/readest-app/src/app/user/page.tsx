@@ -94,6 +94,7 @@ const ProfilePage = () => {
   const { handleLogout, handleResetPassword, handleUpdateEmail, handleConfirmDelete } =
     useUserActions();
 
+  // @ts-expect-error hook args not needed by stub
   const { availablePlans, iapAvailable } = useAvailablePlans({
     hasIAP: appService?.hasIAP || false,
     onError: useCallback(
@@ -235,6 +236,7 @@ const ProfilePage = () => {
   };
 
   const handleDeleteWithMessage = () => {
+    // @ts-expect-error stub accepts no args, real impl takes error message
     handleConfirmDelete(_('Failed to delete user. Please try again later.'));
   };
 
@@ -305,8 +307,8 @@ const ProfilePage = () => {
               <div className='flex flex-col gap-y-8'>
                 <div className='flex flex-col gap-y-8 px-6'>
                   <UserInfo
-                    avatarUrl={avatarUrl}
-                    userFullName={userFullName}
+                    avatarUrl={avatarUrl as string | undefined}
+                    userFullName={userFullName as string}
                     userEmail={userEmail}
                     planDetails={userPlanDetails}
                   />

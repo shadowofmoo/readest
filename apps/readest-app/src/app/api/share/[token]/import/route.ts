@@ -81,8 +81,10 @@ export async function POST(request: Request, { params }: RouteParams) {
     console.error('Share import existing-row lookup failed:', existingError);
     return NextResponse.json({ error: 'Could not check library' }, { status: 500 });
   }
-  const existingRows = (existing ?? []).filter((f) => !/\.(png|jpe?g|webp|gif)$/i.test(f.file_key));
-  const liveRow = existingRows.find((f) => f.deleted_at === null);
+  const existingRows = (existing ?? []).filter(
+    (f: any) => !/\.(png|jpe?g|webp|gif)$/i.test(f.file_key),
+  );
+  const liveRow = existingRows.find((f: any) => f.deleted_at === null);
   if (liveRow) {
     return NextResponse.json({
       fileId: liveRow.id,
@@ -91,7 +93,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       cfi: share.cfi,
     });
   }
-  const deletedRow = existingRows.find((f) => f.deleted_at !== null);
+  const deletedRow = existingRows.find((f: any) => f.deleted_at !== null);
   if (deletedRow) {
     // Restore the soft-deleted row so the unique file_key constraint isn't
     // hit by a fresh insert. The bytes may also still be in storage; if the

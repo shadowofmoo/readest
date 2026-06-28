@@ -90,10 +90,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // etc. that wouldn't match a search filter still ride along.
     // IMPORTANT: We don't apply the search filter here.
     const bookHashes = Array.from(
-      new Set((files || []).map((f) => f.book_hash).filter((hash): hash is string => !!hash)),
+      new Set(
+        (files || []).map((f: any) => f.book_hash).filter((hash: any): hash is string => !!hash),
+      ),
     );
     const replicaIds = Array.from(
-      new Set((files || []).map((f) => f.replica_id).filter((id): id is string => !!id)),
+      new Set((files || []).map((f: any) => f.replica_id).filter((id: any): id is string => !!id)),
     );
     let allRelatedFiles = files || [];
     if (bookHashes.length > 0 || replicaIds.length > 0) {
@@ -106,14 +108,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .eq('user_id', user.id)
           .is('deleted_at', null);
 
-      const fileMap = new Map(allRelatedFiles.map((f) => [f.file_key, f]));
+      const fileMap = new Map(allRelatedFiles.map((f: any) => [f.file_key, f]));
       if (bookHashes.length > 0) {
         const { data, error } = await baseQuery().in('book_hash', bookHashes);
-        if (!error && data) data.forEach((f) => fileMap.set(f.file_key, f));
+        if (!error && data) data.forEach((f: any) => fileMap.set(f.file_key, f));
       }
       if (replicaIds.length > 0) {
         const { data, error } = await baseQuery().in('replica_id', replicaIds);
-        if (!error && data) data.forEach((f) => fileMap.set(f.file_key, f));
+        if (!error && data) data.forEach((f: any) => fileMap.set(f.file_key, f));
       }
       allRelatedFiles = Array.from(fileMap.values());
     }

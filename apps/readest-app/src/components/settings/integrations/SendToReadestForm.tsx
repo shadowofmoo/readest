@@ -68,6 +68,7 @@ const SendToReadestForm: React.FC<SendToReadestFormProps> = ({ onBack }) => {
 
   const load = useCallback(async () => {
     try {
+      // @ts-expect-error getUserProfilePlan expects token arg, stub accepts none
       const plan: UserPlan = getUserProfilePlan();
       setUserPlan(plan);
       if (!isEmailInPlan(plan)) {

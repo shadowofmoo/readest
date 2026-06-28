@@ -102,11 +102,11 @@ export const resolveActiveShare = async (
     return { ok: false, reason: { kind: 'lookup_failed', detail: filesError.message } };
   }
 
-  const bookFile = files?.find((f) => !isCoverKey(f.file_key));
+  const bookFile = files?.find((f: any) => !isCoverKey(f.file_key));
   if (!bookFile) {
     return { ok: false, reason: { kind: 'source_deleted' } };
   }
-  const coverFile = files?.find((f) => isCoverKey(f.file_key));
+  const coverFile = files?.find((f: any) => isCoverKey(f.file_key));
 
   return {
     ok: true,

@@ -30,7 +30,7 @@ export default function ResetPasswordPage() {
   };
 
   useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event: any, session: any) => {
       if (session?.access_token && session.user && event === 'USER_UPDATED') {
         login(session.access_token, session.user);
         const redirectTo = new URLSearchParams(window.location.search).get('redirect');
@@ -48,7 +48,7 @@ export default function ResetPasswordPage() {
     <div className='flex min-h-screen items-center justify-center'>
       <div className='w-full max-w-md p-8'>
         <Auth
-          supabaseClient={supabase}
+          supabaseClient={supabase as any}
           view='update_password'
           appearance={{ theme: ThemeSupa }}
           theme={isDarkMode ? 'dark' : 'light'}

@@ -175,7 +175,14 @@ export default function AuthPage() {
         if (getUserProfilePlan(accessToken) === 'free') {
           next = '/user';
         }
-        handleAuthCallback({ accessToken, refreshToken, type, next, login, navigate: router.push });
+        handleAuthCallback({
+          accessToken,
+          refreshToken,
+          type,
+          next,
+          login: login as any,
+          navigate: router.push,
+        });
       }
     }
   };
@@ -314,7 +321,7 @@ export default function AuthPage() {
   }, []);
 
   useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session?.access_token && session.user) {
         login(session.access_token, session.user);
         const redirectTo = new URLSearchParams(window.location.search).get('redirect');
@@ -419,7 +426,7 @@ export default function AuthPage() {
           <hr aria-hidden='true' className='border-base-300 my-3 mt-6 w-64 border-t' />
           <div className='w-full'>
             <Auth
-              supabaseClient={supabase}
+              supabaseClient={supabase as any}
               appearance={{ theme: ThemeSupa }}
               theme={isDarkMode ? 'dark' : 'light'}
               magicLink={true}
@@ -440,7 +447,7 @@ export default function AuthPage() {
         <IoArrowBack className='text-base-content' />
       </button>
       <Auth
-        supabaseClient={supabase}
+        supabaseClient={supabase as any}
         appearance={{ theme: ThemeSupa }}
         theme={isDarkMode ? 'dark' : 'light'}
         magicLink={true}

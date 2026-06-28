@@ -62,14 +62,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Verify all files belong to the user
-    const unauthorizedFiles = fileRecords.filter((record) => record.user_id !== user.id);
+    const unauthorizedFiles = fileRecords.filter((record: any) => record.user_id !== user.id);
     if (unauthorizedFiles.length > 0) {
       return res.status(403).json({ error: 'Unauthorized access to one or more files' });
     }
 
     // Process deletions
     const results = await Promise.allSettled(
-      fileRecords.map(async (fileRecord) => {
+      fileRecords.map(async (fileRecord: any) => {
         try {
           // Delete from storage
           await deleteObject(fileRecord.file_key);
@@ -118,7 +118,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // Handle files that weren't found in the database
-    const foundFileKeys = new Set(fileRecords.map((record) => record.file_key));
+    const foundFileKeys = new Set(fileRecords.map((record: any) => record.file_key));
     const notFoundKeys = fileKeys.filter((key) => !foundFileKeys.has(key));
     notFoundKeys.forEach((key) => {
       failed.push({

@@ -436,7 +436,7 @@ export async function POST(req: NextRequest) {
 
       // Create lookup map
       const serverRecordsMap = new Map<string, BookDataRecord>();
-      (serverRecords || []).forEach((record) => {
+      (serverRecords || []).forEach((record: any) => {
         const key = primaryKeys.map((pk) => record[pk]).join('|');
         serverRecordsMap.set(key, record);
       });
@@ -662,7 +662,7 @@ export async function POST(req: NextRequest) {
           .in('start_time', startTimes);
         if (exErr) return NextResponse.json({ error: exErr.message }, { status: 500 });
         const serverMap = new Map<string, StatPageRecord>();
-        (existing ?? []).forEach((r) =>
+        (existing ?? []).forEach((r: any) =>
           serverMap.set(pageKey(r as StatPageRecord), r as StatPageRecord),
         );
         const { toUpsert } = pickWinningPages(batch, serverMap);

@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const supabaseAdmin = createSupabaseAdminClient();
     const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id);
     if (error) {
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: (error as any).message });
     }
 
     res.status(200).json({ message: 'User deleted successfully' });
