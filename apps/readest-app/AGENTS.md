@@ -65,6 +65,10 @@ pnpm worktree:new feat/my-feature   # New branch from origin/main
 pnpm worktree:new 3837              # Checkout PR #3837 with push access to fork
 ```
 
+## Merge Workflow
+
+When merging upstream (`origin/main`) into your branch, follow the rules in [`.agents/rules/merge.md`](.agents/rules/merge.md). **Always** run `pnpm lint` after resolving merge conflicts and before `git merge --continue`. Never merge and commit without verifying type safety first.
+
 ## Agent Workspace
 
 Project-related agent context lives under `.agents/`, which is a symlink to `.claude/`. Treat `.agents/` as the canonical path when looking for or updating local agent material:
